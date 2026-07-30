@@ -2,8 +2,6 @@
 
 **Rescue Pulse** is an edge-computing IoT device designed to help traffic officers detect approaching emergency vehicles in high-noise urban environments. Using dual MEMS microphones and an ESP32-S3, the system classifies sirens in real-time and calculates the direction of approach (Left/Right) using GCC-PHAT TDOA, alerting officers *before* the vehicle reaches the intersection.
 
-> **MVP Goal:** >90% Siren Detection Accuracy | <100ms Inference Latency | <5% False Positive Rate
-
 ---
 
 ### 🧠 System Architecture
