@@ -1,0 +1,43 @@
+# ==========================================
+# RESCUE PULSE .GITIGNORE
+# ==========================================
+
+# 1. ESP-IDF & C/C++ Build Files
+build/
+sdkconfig.old
+sdkconfig.defaults.old
+.vscode/
+managed_components/
+dependencies.lock
+*.o
+*.d
+
+# 2. Python & Machine Learning Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+.ipynb_checkpoints/
+*.log
+
+# 3. Datasets & Heavy Files (KEEP REPO LIGHT!)
+# Do not push raw audio, large numpy arrays, or unquantized models
+dataset/
+data/
+*.wav
+*.mp3
+*.npy
+*.h5
+
+# Allow quantized TFLite models to be pushed (they are <50KB)
+!ml_pipeline/models/*.tflite 
+
+# 4. Edge Impulse Auto-generated Folders (Usually added as a component)
+# edge_impulse/
+
+# 5. OS Generated Files
+.DS_Store
+Thumbs.db
+*.swp
