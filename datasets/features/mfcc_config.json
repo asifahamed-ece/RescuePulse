@@ -1,0 +1,11 @@
+{
+ "sr": 16000,
+ "n_fft": 512,
+ "hop": 256,
+ "n_mfcc": 13,
+ "n_mels": 40,
+ "fmin": 20,
+ "fmax": 8000,
+ "window": "hamming",
+ "n_win": 64
+}
