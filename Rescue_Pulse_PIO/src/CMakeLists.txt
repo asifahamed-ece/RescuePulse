@@ -1,3 +1,3 @@
-idf_component_register(SRCS "model_data.cc" "main.c" "mfcc.c"
+idf_component_register(SRCS "main.c" "mfcc.c" "inference.cpp" "model_data.cc"
                        INCLUDE_DIRS "."
-                       REQUIRES esp-dsp esp_timer)
+                       REQUIRES esp-dsp esp-tflite-micro esp_timer)
