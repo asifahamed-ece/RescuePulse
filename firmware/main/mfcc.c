@@ -1,7 +1,7 @@
 #include "mfcc.h"
 #include "mel_tables.h"
 #include <math.h>
-#include "dsps_fft2r.h"
+#include "esp_dsp.h"
 
 #define N_FFT      512
 #define HOP        256
@@ -34,11 +34,13 @@ void mfcc_extract_block(const int16_t *pcm, float out[64][13])
     for (int t = 0; t < N_WIN; t++) {
         int start = t * HOP;
 
-        /* window + pack real sequence */
+        /* window + pack as interleaved complex: re at even, im=0 at odd */
         for (int i = 0; i < N_FFT; i++) {
-            s_fft[i] = s_y[start + i] * g_ham[i];
+            s_fft[2 * i]     = s_y[start + i] * g_ham[i];
+            s_fft[2 * i + 1] = 0.0f;
         }
         dsps_fft2r_fc32(s_fft, N_FFT);
+        dsps_bit_rev2r_fc32(s_fft, N_FFT);   /* restore natural bin order */
 
         /* unpack real FFT: power[0]=re[0]^2; power[256]=im[0]^2;
            power[k]=re[k]^2+im[k]^2 for k=1..255 */
