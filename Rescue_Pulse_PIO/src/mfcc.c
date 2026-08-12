@@ -39,14 +39,17 @@ void mfcc_extract_block(const int16_t *pcm, float out[64][13])
             s_fft[2 * i]     = s_y[start + i] * g_ham[i];
             s_fft[2 * i + 1] = 0.0f;
         }
+        
+        /* Perform 512-point complex FFT */
         dsps_fft2r_fc32(s_fft, N_FFT);
-        dsps_bit_rev2r_fc32(s_fft, N_FFT);   /* restore natural bin order */
+        
+        /* Restore natural bin order (CRITICAL) */
+        dsps_bit_rev2r_fc32(s_fft, N_FFT);
 
-        /* unpack real FFT: power[0]=re[0]^2; power[256]=im[0]^2;
-           power[k]=re[k]^2+im[k]^2 for k=1..255 */
-        s_power[0] = s_fft[0] * s_fft[0];
-        s_power[N_FFT / 2] = s_fft[1] * s_fft[1];
-        for (int k = 1; k < N_FFT / 2; k++) {
+        /* CORRECT UNPACKING: 
+           For a standard complex FFT, Bin k is exactly at s_fft[2*k] (real) 
+           and s_fft[2*k+1] (imaginary). We need bins 0 to 256 (N_FFT/2). */
+        for (int k = 0; k <= N_FFT / 2; k++) {
             float re = s_fft[2 * k];
             float im = s_fft[2 * k + 1];
             s_power[k] = re * re + im * im;
