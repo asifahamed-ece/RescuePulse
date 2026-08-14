@@ -19,7 +19,11 @@ static float s_y[N_SAMPLES];          /* 16640 pre-emphasized */
 
 void mfcc_init(void)
 {
-    dsps_fft2r_init_fc32(NULL, N_FFT);
+    esp_err_t ret = dsps_fft2r_init_fc32(NULL, N_FFT);
+    ESP_LOGI("mfcc", "BUILD MARKER v2");
+    if (ret != ESP_OK) {
+        ESP_LOGE("mfcc", "FFT init failed: %d", ret);
+    }
 }
 
 void mfcc_extract_block(const int16_t *pcm, float out[64][13])
@@ -34,26 +38,24 @@ void mfcc_extract_block(const int16_t *pcm, float out[64][13])
     for (int t = 0; t < N_WIN; t++) {
         int start = t * HOP;
 
-        /* window + pack as interleaved complex: re at even, im=0 at odd */
+        /* window + pack real sequence as interleaved complex */
         for (int i = 0; i < N_FFT; i++) {
             s_fft[2 * i]     = s_y[start + i] * g_ham[i];
             s_fft[2 * i + 1] = 0.0f;
         }
         
-        /* Perform 512-point complex FFT */
+        // Perform Real FFT. 
         dsps_fft2r_fc32(s_fft, N_FFT);
-        
-        /* Restore natural bin order (CRITICAL) */
-        dsps_bit_rev2r_fc32(s_fft, N_FFT);
+        dsps_bit_rev_fc32(s_fft, N_FFT);
 
-        /* CORRECT UNPACKING: 
-           For a standard complex FFT, Bin k is exactly at s_fft[2*k] (real) 
-           and s_fft[2*k+1] (imaginary). We need bins 0 to 256 (N_FFT/2). */
-        for (int k = 0; k <= N_FFT / 2; k++) {
+        /* Unpack the special format into power spectrum */
+        s_power[0] = s_fft[0] * s_fft[0];                       /* DC bin, Re[0] */
+        for (int k = 1; k < N_FFT / 2; k++) {
             float re = s_fft[2 * k];
             float im = s_fft[2 * k + 1];
             s_power[k] = re * re + im * im;
         }
+        s_power[N_FFT / 2] = s_fft[N_FFT] * s_fft[N_FFT];        /* Nyquist bin, Re[N/2] */
 
         /* c) mel_e[m]=dot(g_mel_fb+m*257, power);
               db=10*log10f(fmaxf(mel_e,1e-10f)) */
