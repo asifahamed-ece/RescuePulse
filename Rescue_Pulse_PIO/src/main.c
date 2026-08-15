@@ -1,41 +1,58 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "mfcc.h"
 #include "mel_tables.h"
-#include "test_vectors.h"
 #include "model_config.h"
 #include "inference.h"
+#include "i2s_capture.h"
 
-static const char *TAG = "mfcc_parity";
+#ifdef RP_PARITY_TEST
+#include "test_vectors.h"
+#endif
 
-#define N_WIN   64
-#define N_MFCC  13
-#define N_TOTAL (N_WIN * N_MFCC)   /* 832 */
+static const char *TAG = "rescuepulse";
 
-static float   got[N_WIN][N_MFCC];
-static int8_t  q_in[N_TOTAL];
-static int8_t  q_out[2];
+/* ------------------------------------------------------------------ */
+/*  Audio pipeline constants                                          */
+/* ------------------------------------------------------------------ */
+#define N_WIN       64
+#define N_MFCC      13
+#define N_TOTAL     (N_WIN * N_MFCC)          /* 832 */
+#define N_SAMPLES   16640                     /* (64-1)*256 + 512 */
+#define CHUNK       512                       /* I2S read chunk size */
 
-/* Relative L2 error: ||got-exp|| / ||exp||  (librosa-style) */
-static float rel_l2(const float *a, const float *b)
-{
-    float num = 0.0f, den = 0.0f;
-    for (int i = 0; i < N_TOTAL; i++) {
-        float d = a[i] - b[i];
-        num += d * d;
-        den += b[i] * b[i];
-    }
-    return sqrtf(num / den);
-}
+#define VOTE_WINDOWS 5                        /* majority-vote window */
+#define VOTE_THRESH  3                        /* >=3 siren -> SIREN DETECTED */
 
-/* z = (mfcc - g_mfcc_mu) / g_mfcc_std ;
- * q = clip( round(z / g_in_scale) + g_in_zp , -128, 127)  */
+#define TASK_STACK_INFERENCE 16384
+#define TASK_STACK_CAPTURE   4096
+
+/* ------------------------------------------------------------------ */
+/*  Static buffers - NO heap allocation after init                    */
+/* ------------------------------------------------------------------ */
+/* Ping-pong double buffering: capture fills buf[wr]; on full,
+ * rd=wr; wr=1-wr; give semaphore. Inference reads buf[rd]. */
+static int16_t s_audio_buf[2][N_SAMPLES];
+static volatile int s_wr = 0;                 /* buffer being filled */
+static volatile int s_rd = 0;                 /* buffer ready for inference */
+
+static float   s_mfcc[N_WIN][N_MFCC];
+static int8_t  s_q_in[N_TOTAL];
+static int8_t  s_q_out[2];
+
+static SemaphoreHandle_t s_block_ready = NULL;
+
+/* ------------------------------------------------------------------ */
+/*  Quantization (identical to Phase 7 parity test)                   */
+/* ------------------------------------------------------------------ */
 static void quantize_mfcc(const float mfcc[N_WIN][N_MFCC], int8_t *out)
 {
     for (int t = 0; t < N_WIN; t++) {
@@ -50,43 +67,105 @@ static void quantize_mfcc(const float mfcc[N_WIN][N_MFCC], int8_t *out)
     }
 }
 
-static void run_tag(const char   *tag,
-                    const int16_t *pcm,
-                    const float   *exp_mfcc,
-                    int            expected_class)
+/* ------------------------------------------------------------------ */
+/*  audio_capture_task  (Core 0)                                      */
+/*  Continuously reads I2S DMA into the ping-pong buffers.            */
+/* ------------------------------------------------------------------ */
+static void audio_capture_task(void *arg)
 {
-    int64_t t0 = esp_timer_get_time();
-    mfcc_extract_block(pcm, got);
-    int64_t t1 = esp_timer_get_time();
-    float ms = (float)(t1 - t0) / 1000.0f;
+    static int16_t chunk[CHUNK];
+    size_t fill = 0;
 
-    /* ---- MFCC math parity ----------------------------------------- */
-    float rel = rel_l2((const float *)got, exp_mfcc);
-    bool pass_l2 = (rel < 0.01f);
-    ESP_LOGI(TAG, "%s Test: L2 Error = %.5f (%s)  [%.1f ms]",
-             tag, rel, pass_l2 ? "PASS" : "FAIL", ms);
+    ESP_LOGI(TAG, "audio_capture_task started on core %d", xPortGetCoreID());
 
-    /* ---- Quantize -> TFLite inference ---------------------------- */
-    quantize_mfcc(got, q_in);
-    if (!inference_run(q_in, q_out)) {
-        ESP_LOGE(TAG, "%s Inference: invoke failed", tag);
-        return;
+    while (1) {
+        if (i2s_capture_read(chunk, CHUNK) != ESP_OK) {
+            ESP_LOGE(TAG, "I2S read failed - retrying");
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        /* Copy chunk into current write buffer */
+        memcpy(&s_audio_buf[s_wr][fill], chunk, sizeof(chunk));
+        fill += CHUNK;
+
+        if (fill >= N_SAMPLES) {
+            /* Buffer full: publish it and switch to the other buffer */
+            s_rd = s_wr;
+            s_wr = 1 - s_wr;
+            fill = 0;
+            xSemaphoreGive(s_block_ready);
+        }
     }
-
-    /* argmax of the dequantized softmax scores.
-     * argmax is invariant under the per-tensor affine map, but we dequantize
-     * so the probabilities are human-readable on the serial monitor. */
-    float p0 = ((float)q_out[0] - (float)g_out_zp) * g_out_scale;
-    float p1 = ((float)q_out[1] - (float)g_out_zp) * g_out_scale;
-    int pred = (p1 > p0) ? 1 : 0;
-    bool pass_inf = (pred == expected_class);
-    ESP_LOGI(TAG,
-             "%s Inference: Predicted %d (Expected %d) - %s  [scores %.4f / %.4f]",
-             tag, pred, expected_class, pass_inf ? "PASS" : "FAIL", p0, p1);
 }
 
+/* ------------------------------------------------------------------ */
+/*  inference_task  (Core 1)                                          */
+/*  Waits for a full 16,640-sample block, runs MFCC + inference,      */
+/*  applies 5-window majority vote, prints result.                    */
+/* ------------------------------------------------------------------ */
+static void inference_task(void *arg)
+{
+    int vote_siren = 0;
+    int vote_count = 0;
+
+    ESP_LOGI(TAG, "inference_task started on core %d", xPortGetCoreID());
+
+    while (1) {
+        /* Wait for a full block */
+        if (xSemaphoreTake(s_block_ready, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+
+        int buf_idx = s_rd;
+
+        /* ---- MFCC extraction ---- */
+        int64_t t0 = esp_timer_get_time();
+        mfcc_extract_block(s_audio_buf[buf_idx], s_mfcc);
+        int64_t t1 = esp_timer_get_time();
+        float mfcc_ms = (float)(t1 - t0) / 1000.0f;
+
+        /* ---- Quantize ---- */
+        quantize_mfcc(s_mfcc, s_q_in);
+
+        /* ---- Inference ---- */
+        if (!inference_run(s_q_in, s_q_out)) {
+            ESP_LOGE(TAG, "inference_run failed");
+            continue;
+        }
+
+        /* ---- Dequantize softmax scores ---- */
+        float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
+        float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
+        int pred = (p1 > p0) ? 1 : 0;
+
+        /* ---- Majority vote (5-window) ---- */
+        if (pred == 1) vote_siren++;
+        vote_count++;
+
+        if (vote_count >= VOTE_WINDOWS) {
+            bool siren = (vote_siren >= VOTE_THRESH);
+            ESP_LOGI(TAG, "VOTE[%d/%d] %s  (scores %.4f / %.4f)  [mfcc %.1f ms]",
+                     vote_siren, VOTE_WINDOWS,
+                     siren ? "SIREN DETECTED" : "NOISE",
+                     p0, p1, mfcc_ms);
+            vote_siren = 0;
+            vote_count = 0;
+        } else {
+            /* Log every window's scores regardless */
+            ESP_LOGI(TAG, "WIN %d/%d pred=%d (scores %.4f / %.4f)  [mfcc %.1f ms]",
+                     vote_count, VOTE_WINDOWS, pred, p0, p1, mfcc_ms);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  app_main                                                          */
+/* ------------------------------------------------------------------ */
 void app_main(void)
 {
+    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v1");
+
     mfcc_init();
     ESP_LOGI(TAG, "MFCC Init: OK");
 
@@ -96,9 +175,79 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "TFLite Init: OK");
 
+    if (i2s_capture_init() != ESP_OK) {
+        ESP_LOGE(TAG, "I2S Init: FAIL");
+        return;
+    }
+    ESP_LOGI(TAG, "I2S Init: OK");
+
+    /* Create block-ready semaphore */
+    s_block_ready = xSemaphoreCreateBinary();
+    if (s_block_ready == NULL) {
+        ESP_LOGE(TAG, "Semaphore create failed");
+        return;
+    }
+
+    /* Create tasks pinned to separate cores */
+    xTaskCreatePinnedToCore(audio_capture_task, "audio_capture",
+                            TASK_STACK_CAPTURE, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(inference_task, "inference",
+                            TASK_STACK_INFERENCE, NULL, 4, NULL, 1);
+
+    ESP_LOGI(TAG, "Pipeline started: capture(Core0) -> inference(Core1)");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Optional offline parity test (compile with -DRP_PARITY_TEST)      */
+/* ------------------------------------------------------------------ */
+#ifdef RP_PARITY_TEST
+
+static float rel_l2(const float *a, const float *b)
+{
+    float num = 0.0f, den = 0.0f;
+    for (int i = 0; i < N_TOTAL; i++) {
+        float d = a[i] - b[i];
+        num += d * d;
+        den += b[i] * b[i];
+    }
+    return sqrtf(num / den);
+}
+
+static void run_tag(const char   *tag,
+                    const int16_t *pcm,
+                    const float   *exp_mfcc,
+                    int            expected_class)
+{
+    int64_t t0 = esp_timer_get_time();
+    mfcc_extract_block(pcm, s_mfcc);
+    int64_t t1 = esp_timer_get_time();
+    float ms = (float)(t1 - t0) / 1000.0f;
+
+    float rel = rel_l2((const float *)s_mfcc, exp_mfcc);
+    bool pass_l2 = (rel < 0.01f);
+    ESP_LOGI(TAG, "%s Test: L2 Error = %.5f (%s)  [%.1f ms]",
+             tag, rel, pass_l2 ? "PASS" : "FAIL", ms);
+
+    quantize_mfcc(s_mfcc, s_q_in);
+    if (!inference_run(s_q_in, s_q_out)) {
+        ESP_LOGE(TAG, "%s Inference: invoke failed", tag);
+        return;
+    }
+
+    float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
+    float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
+    int pred = (p1 > p0) ? 1 : 0;
+    bool pass_inf = (pred == expected_class);
+    ESP_LOGI(TAG,
+             "%s Inference: Predicted %d (Expected %d) - %s  [scores %.4f / %.4f]",
+             tag, pred, expected_class, pass_inf ? "PASS" : "FAIL", p0, p1);
+}
+
+static void run_parity_test(void)
+{
     run_tag("Siren", tv_siren_pcm, tv_siren_mfcc, TV_SIREN_CLASS);
     run_tag("Noise", tv_noise_pcm, tv_noise_mfcc, TV_NOISE_CLASS);
-
-    ESP_LOGI(TAG, "done");
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGI(TAG, "Parity test done");
 }
+
+#endif /* RP_PARITY_TEST */
