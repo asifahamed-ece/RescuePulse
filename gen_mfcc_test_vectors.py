@@ -23,12 +23,18 @@ TFL  = Path("models/siren_classifier_quantized.tflite")
 OUT  = Path("firmware/main"); OUT.mkdir(parents=True, exist_ok=True)
 
 def ortho_dct2(n_filters, width):
-    """Orthonormal DCT-II matrix [n_filters][width]."""
+    """Orthonormal DCT-II matrix [n_filters][width].
+
+    Matches scipy.fftpack.dct(norm='ortho'), which is what
+    librosa.feature.mfcc() uses internally:
+        D[k, n] = sqrt(1/N)                 for k=0
+        D[k, n] = sqrt(2/N) * cos(pi*k*(2n+1)/(2N))  for k=1..n_filters-1
+    """
     n = np.arange(width)
-    k = np.arange(1, n_filters + 1)[:, None]
+    k = np.arange(n_filters)[:, None]          # k = 0, 1, ..., n_filters-1
     D = np.cos(np.pi * k * (2 * n[None, :] + 1) / (2 * width))
-    D *= np.sqrt(2.0 / width)          
-    D[0, :] *= 1.0 / np.sqrt(2.0)      
+    D[0, :] *= np.sqrt(1.0 / width)            # row 0: constant sqrt(1/N)
+    D[1:, :] *= np.sqrt(2.0 / width)           # rows 1..: sqrt(2/N)
     return D
 
 def c_float(f, name, a, cols=8):
