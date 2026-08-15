@@ -50,6 +50,10 @@ static int8_t  s_q_out[2];
 
 static SemaphoreHandle_t s_block_ready = NULL;
 
+#ifdef RP_PARITY_TEST
+static void run_parity_test(void);
+#endif
+
 /* ------------------------------------------------------------------ */
 /*  Quantization (identical to Phase 7 parity test)                   */
 /* ------------------------------------------------------------------ */
@@ -187,6 +191,11 @@ void app_main(void)
         ESP_LOGE(TAG, "Semaphore create failed");
         return;
     }
+
+#ifdef RP_PARITY_TEST
+    /* Offline parity test (compile with -DRP_PARITY_TEST) */
+    run_parity_test();
+#endif
 
     /* Create tasks pinned to separate cores */
     xTaskCreatePinnedToCore(audio_capture_task, "audio_capture",
