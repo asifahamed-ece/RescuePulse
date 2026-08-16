@@ -123,6 +123,14 @@ static void inference_task(void *arg)
 
         int buf_idx = s_rd;
 
+        /* ---- RMS volume meter ---- */
+        float sum_sq = 0.0f;
+        for (int i = 0; i < N_SAMPLES; i++) {
+            float sample = (float)s_audio_buf[buf_idx][i] / 32768.0f;
+            sum_sq += sample * sample;
+        }
+        float rms = sqrtf(sum_sq / (float)N_SAMPLES);
+
         /* ---- MFCC extraction ---- */
         int64_t t0 = esp_timer_get_time();
         mfcc_extract_block(s_audio_buf[buf_idx], s_mfcc);
@@ -149,16 +157,16 @@ static void inference_task(void *arg)
 
         if (vote_count >= VOTE_WINDOWS) {
             bool siren = (vote_siren >= VOTE_THRESH);
-            ESP_LOGI(TAG, "VOTE[%d/%d] %s  (scores %.4f / %.4f)  [mfcc %.1f ms]",
+            ESP_LOGI(TAG, "VOTE[%d/%d] %s  (scores %.4f / %.4f)  [RMS: %.4f]  [mfcc %.1f ms]",
                      vote_siren, VOTE_WINDOWS,
                      siren ? "SIREN DETECTED" : "NOISE",
-                     p0, p1, mfcc_ms);
+                     p0, p1, rms, mfcc_ms);
             vote_siren = 0;
             vote_count = 0;
         } else {
             /* Log every window's scores regardless */
-            ESP_LOGI(TAG, "WIN %d/%d pred=%d (scores %.4f / %.4f)  [mfcc %.1f ms]",
-                     vote_count, VOTE_WINDOWS, pred, p0, p1, mfcc_ms);
+            ESP_LOGI(TAG, "WIN %d/%d pred=%d (scores %.4f / %.4f)  [RMS: %.4f]  [mfcc %.1f ms]",
+                     vote_count, VOTE_WINDOWS, pred, p0, p1, rms, mfcc_ms);
         }
     }
 }
