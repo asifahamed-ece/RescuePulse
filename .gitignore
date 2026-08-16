@@ -3,6 +3,10 @@
 *.tmp
 *.swp
 
+#Datasets
+*.npy
+*.wav
+
 # Environment
 .env
 .env.local
