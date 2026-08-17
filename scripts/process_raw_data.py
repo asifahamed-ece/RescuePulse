@@ -8,9 +8,10 @@ from pathlib import Path
 # ==========================================
 # CONFIGURATION (Matches your PDF Specs)
 # ==========================================
-RAW_DIR = Path("datasets/raw")
-PROCESSED_DIR = Path("datasets/processed")
-MANIFEST_PATH = Path("datasets/manifest.csv")
+ROOT = Path(__file__).resolve().parent.parent   # repo root (one level up from scripts/)
+RAW_DIR = ROOT / "datasets/raw"
+PROCESSED_DIR = ROOT / "datasets/processed"
+MANIFEST_PATH = ROOT / "datasets/manifest.csv"
 
 TARGET_SR = 16000       # 16kHz sample rate
 TARGET_SEC = 3.0        # 3 seconds duration
