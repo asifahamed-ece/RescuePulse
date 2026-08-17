@@ -87,12 +87,13 @@ rescue-pulse/
 │   ├── model_data.cc         # Quantized model binary
 │   └── model_config.h        # Audio/quant config
 │
-├── audit_dataset.py          # Data cleaning
-├── process_raw_data.py       # Audio preprocessing
-├── extract_features.py       # MFCC extraction
-├── train_model.py            # CNN training
-├── quantize_model.py         # int8 quantization
-└── gen_mfcc_test_vectors.py  # Firmware test data
+├── scripts/                  # Python ML pipeline (paths anchored to repo root)
+│   ├── audit_dataset.py      # Data cleaning
+│   ├── process_raw_data.py   # Audio preprocessing
+│   ├── extract_features.py   # MFCC extraction
+│   ├── train_model.py        # CNN training
+│   ├── quantize_model.py     # int8 quantization
+│   └── gen_mfcc_test_vectors.py  # Firmware test data
 ```
 
 ---
