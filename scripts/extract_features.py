@@ -18,10 +18,11 @@ AUG_JITTER   = 0.05          # gaussian noise sigma on standardized features
 AUG_PROB     = 0.9           # probability a window gets augmented
 SEED = 42
 
-MANIFEST = Path("datasets/manifest_clean.csv")     # audit output (falls back below)
-MANIFEST_FALLBACK = Path("datasets/manifest.csv")
-PROCESSED = Path("datasets/processed")             # siren/ & noise/ subfolders
-OUT = Path("datasets/features"); OUT.mkdir(parents=True, exist_ok=True)
+ROOT = Path(__file__).resolve().parent.parent      # repo root (one level up from scripts/)
+MANIFEST = ROOT / "datasets/manifest_clean.csv"    # audit output (falls back below)
+MANIFEST_FALLBACK = ROOT / "datasets/manifest.csv"
+PROCESSED = ROOT / "datasets/processed"            # siren/ & noise/ subfolders
+OUT = ROOT / "datasets/features"; OUT.mkdir(parents=True, exist_ok=True)
 
 random.seed(SEED); rng = random.Random(SEED)
 
