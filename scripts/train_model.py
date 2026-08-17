@@ -17,8 +17,9 @@ import tensorflow as tf
 SEED = 42
 tf.keras.utils.set_random_seed(SEED)
 
-FEAT_DIR = Path("datasets/features")
-MODEL_DIR = Path("models")
+ROOT = Path(__file__).resolve().parent.parent   # repo root (one level up from scripts/)
+FEAT_DIR = ROOT / "datasets/features"
+MODEL_DIR = ROOT / "models"
 MODEL_DIR.mkdir(exist_ok=True)
 
 BATCH_SIZE, EPOCHS = 32, 50
