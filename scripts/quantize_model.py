@@ -27,8 +27,9 @@ tf.keras.utils.set_random_seed(SEED)
 np.random.seed(SEED)
 rng = np.random.RandomState(SEED)
 
-FEAT_DIR = Path("datasets/features")
-MODEL_DIR = Path("models")
+ROOT = Path(__file__).resolve().parent.parent   # repo root (one level up from scripts/)
+FEAT_DIR = ROOT / "datasets/features"
+MODEL_DIR = ROOT / "models"
 
 MODEL_KERAS = MODEL_DIR / "siren_classifier.keras"
 MODEL_H5 = MODEL_DIR / "siren_classifier.h5"
