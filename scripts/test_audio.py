@@ -27,8 +27,9 @@ FMIN, FMAX, WINDOW, PRE = 20, 8000, "hamming", 0.97
 N_WIN = 64                 # frames per model window (~1.04 s)
 SLIDE = 32                 # window slide (overlap) for longer clips
 
-FEAT_DIR = Path("datasets/features")
-MODEL_DIR = Path("models")
+ROOT = Path(__file__).resolve().parent.parent   # repo root (one level up from scripts/)
+FEAT_DIR = ROOT / "datasets/features"
+MODEL_DIR = ROOT / "models"
 DEFAULT_MODEL = MODEL_DIR / "siren_classifier.keras"
 
 # Subprocess script: computes MFCC windows + standardization, saves to .npz.
