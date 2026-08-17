@@ -18,9 +18,10 @@ import soundfile as sf
 SR, N_FFT, HOP, N_MFCC, N_MELS = 16000, 512, 256, 13, 40
 FMIN, FMAX, PRE, N_WIN = 20, 8000, 0.97, 64
 N_WIN_SAMPLES = (N_WIN - 1) * HOP + N_FFT          # 16640 = exactly one model window
-PROC = Path("datasets/processed"); FEAT = Path("datasets/features")
-TFL  = Path("models/siren_classifier_quantized.tflite")
-OUT  = Path("firmware/main"); OUT.mkdir(parents=True, exist_ok=True)
+ROOT = Path(__file__).resolve().parent.parent      # repo root (one level up from scripts/)
+PROC = ROOT / "datasets/processed"; FEAT = ROOT / "datasets/features"
+TFL  = ROOT / "models/siren_classifier_quantized.tflite"
+OUT  = ROOT / "firmware/main"; OUT.mkdir(parents=True, exist_ok=True)
 
 def ortho_dct2(n_filters, width):
     """Orthonormal DCT-II matrix [n_filters][width].
@@ -118,7 +119,7 @@ mu, std = stats["mu"], stats["std"]
 
 # 3) one siren + one noise clip, exactly one window long
 pick = {}
-for r in csv.DictReader(open("datasets/manifest.csv", newline="", encoding="utf-8")):
+for r in csv.DictReader(open(ROOT / "datasets/manifest.csv", newline="", encoding="utf-8")):
     lab = int(r["label"])
     if lab in pick: continue
     p = PROC / ("siren" if lab else "noise") / r["filename"]
