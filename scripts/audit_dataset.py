@@ -9,9 +9,10 @@ import hashlib
 from collections import defaultdict
 from pathlib import Path
 
-MANIFEST = Path("datasets/manifest.csv")
-PROCESSED = Path("datasets/processed")
-OUT = Path("datasets/manifest_clean.csv")
+ROOT = Path(__file__).resolve().parent.parent   # repo root (one level up from scripts/)
+MANIFEST = ROOT / "datasets/manifest.csv"
+PROCESSED = ROOT / "datasets/processed"
+OUT = ROOT / "datasets/manifest_clean.csv"
 
 
 def file_hash(path: Path, chunk=1 << 20) -> str:
