@@ -1,6 +1,8 @@
 # Rescue Pulse — Python ML Pipeline (`scripts/`)
 
-This directory documents the Python training and quantization scripts that produce the artifacts deployed to the ESP32-S3. The scripts live at the repository root; this README explains the end-to-end workflow and the critical implementation details you'll be asked about in a viva.
+This directory documents the Python training and quantization scripts that produce the artifacts deployed to the ESP32-S3. The scripts live in `scripts/`; this README explains the end-to-end workflow and the critical implementation details you'll be asked about in a viva.
+
+> **Path anchoring:** Every script derives the repository root from its own location (`ROOT = Path(__file__).resolve().parent.parent`), so all `datasets/`, `models/`, and `firmware/` paths resolve correctly regardless of the current working directory. You can run any script from anywhere, e.g. `python scripts/train_model.py`.
 
 ---
 
