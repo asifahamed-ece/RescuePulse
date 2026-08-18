@@ -100,3 +100,13 @@ void mfcc_extract_block(const int16_t *pcm, float out[64][13])
         }
     }
 }
+
+void mfcc_get_mel_energies(float out[64][40])
+{
+    /* Copy the mel-band log energies (s_db is already computed in mfcc_extract_block) */
+    for (int t = 0; t < N_WIN; t++) {
+        for (int m = 0; m < N_MELS; m++) {
+            out[t][m] = s_db[t][m];
+        }
+    }
+}
