@@ -21,9 +21,9 @@
 ### Core Idea
 
 ```
-  Audio Input (16kHz)
-        │
-        ▼
+   Audio Input (16kHz)
+            │
+            ▼
   ┌─────────────────┐
   │  Pre-emphasis   │  y[n] = x[n] - 0.97·x[n-1]
   └────────┬────────┘
@@ -34,9 +34,9 @@
   └────────┬────────┘
            │
            ▼
-  ┌─────────────────┐
+  ┌──────────────────┐
   │  MFCC (13 coeffs)│  64-frame window (~1.04s)
-  └────────┬────────┘
+  └────────┬─────────┘
            │
            ▼
   ┌─────────────────┐
@@ -191,7 +191,7 @@ The project follows a **train-on-PC → deploy-on-edge** TinyML workflow:
 │  MFCC (64,13) windows    1D CNN (Keras)    int8 PTQ (TFLite)      │
 │  + SpecAugment           + standardization  + representative set  │
 │  + per-coeff stats        + clip majority    (200 samples, seed)  │
-│  → mfcc_stats.npz         vote eval                                │
+│  → mfcc_stats.npz         vote eval                               │
 │                                                                   │
 │  gen_mfcc_test_vectors.py                                         │
 │  Dumps librosa tables + 2 end-to-end test vectors                 │
