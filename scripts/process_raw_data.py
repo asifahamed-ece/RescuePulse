@@ -6,7 +6,7 @@ import pandas as pd
 from pathlib import Path
 
 # ==========================================
-# CONFIGURATION (Matches your PDF Specs)
+# CONFIGURATION 
 # ==========================================
 ROOT = Path(__file__).resolve().parent.parent   # repo root (one level up from scripts/)
 RAW_DIR = ROOT / "datasets/raw"
