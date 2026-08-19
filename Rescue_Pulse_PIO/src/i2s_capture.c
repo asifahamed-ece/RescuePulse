@@ -7,9 +7,9 @@
 static const char *TAG = "i2s_capture";
 
 /* INMP441 wiring (safe ESP32-S3 GPIOs) */
-#define I2S_BCLK_GPIO  15
-#define I2S_WS_GPIO    16
-#define I2S_DIN_GPIO   17
+#define I2S_BCLK_GPIO  4
+#define I2S_WS_GPIO    5
+#define I2S_DIN_GPIO   6
 
 #define I2S_SAMPLE_RATE 16000
 #define I2S_DMA_DESC_NUM 6
