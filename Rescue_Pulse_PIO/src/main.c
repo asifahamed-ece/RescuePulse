@@ -35,6 +35,8 @@ static const char *TAG = "rescuepulse";
 #define TASK_STACK_INFERENCE 16384
 #define TASK_STACK_CAPTURE   4096
 
+#define LED_GPIO 41 
+
 /* ------------------------------------------------------------------ */
 /*  Static buffers - NO heap allocation after init                    */
 /* ------------------------------------------------------------------ */
@@ -131,6 +133,16 @@ static void inference_task(void *arg)
         }
         float rms = sqrtf(sum_sq / (float)N_SAMPLES);
 
+        /* ---- RMS GATING: Skip inference if too quiet ---- */
+        #define RMS_THRESHOLD 0.015f  /* Adjust based on your environment */
+        if (rms < RMS_THRESHOLD) {
+            ESP_LOGD(TAG, "Silence detected (RMS=%.4f), skipping inference", rms);
+            /* Reset vote counter on silence to avoid stale detections */
+            vote_siren = 0;
+            vote_count = 0;
+            continue;  /* Skip to next block */
+        }
+
         /* ---- MFCC extraction ---- */
         int64_t t0 = esp_timer_get_time();
         mfcc_extract_block(s_audio_buf[buf_idx], s_mfcc);
@@ -148,26 +160,34 @@ static void inference_task(void *arg)
 
         /* ---- Dequantize softmax scores ---- */
         float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
-        float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
+        float p1 = ((float)s_q_out[1] - (float)g_out_zp * g_out_scale;
         int pred = (p1 > p0) ? 1 : 0;
 
+        /* ---- Confidence threshold ---- */
+        #define CONFIDENCE_THRESHOLD 0.75f  /* Only count votes with >75% confidence */
+        float confidence = (pred == 1) ? p1 : p0;
+
         /* ---- Majority vote (5-window) ---- */
-        if (pred == 1) vote_siren++;
+        if (pred == 1 && confidence >= CONFIDENCE_THRESHOLD) {
+            vote_siren++;
+        }
         vote_count++;
 
         if (vote_count >= VOTE_WINDOWS) {
             bool siren = (vote_siren >= VOTE_THRESH);
-            ESP_LOGI(TAG, "VOTE[%d/%d] %s  (scores %.4f / %.4f)  [RMS: %.4f]  [mfcc %.1f ms]",
-                     vote_siren, VOTE_WINDOWS,
-                     siren ? "SIREN DETECTED" : "NOISE",
-                     p0, p1, rms, mfcc_ms);
+            if (siren) {
+                /* Only log detections prominently */
+                ESP_LOGW(TAG, "🚨 SIREN DETECTED [%d/%d] (conf: %.2f) [RMS: %.4f]",
+                        vote_siren, VOTE_WINDOWS, p1, rms);
+            } else {
+                /* Log noise detections at debug level */
+                ESP_LOGD(TAG, "NOISE [%d/%d] (conf: %.2f) [RMS: %.4f]",
+                        vote_siren, VOTE_WINDOWS, p0, rms);
+            }
             vote_siren = 0;
             vote_count = 0;
-        } else {
-            /* Log every window's scores regardless */
-            ESP_LOGI(TAG, "WIN %d/%d pred=%d (scores %.4f / %.4f)  [RMS: %.4f]  [mfcc %.1f ms]",
-                     vote_count, VOTE_WINDOWS, pred, p0, p1, rms, mfcc_ms);
         }
+        /* Remove the else block that logs every window */
     }
 }
 
@@ -192,6 +212,14 @@ void app_main(void)
         return;
     }
     ESP_LOGI(TAG, "I2S Init: OK");
+
+        /* Configure LED GPIO */
+    gpio_config_t led_cfg = {
+        .pin_bit_mask = (1ULL << LED_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+    };
+    gpio_config(&led_cfg);
+    gpio_set_level(LED_GPIO, 0);  /* LED off initially */
 
     /* Create block-ready semaphore */
     s_block_ready = xSemaphoreCreateBinary();
