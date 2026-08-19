@@ -23,15 +23,15 @@ static const char *TAG = "rescuepulse";
 /* ------------------------------------------------------------------ */
 /*  Audio pipeline constants                                          */
 /* ------------------------------------------------------------------ */
-#define N_WIN          64
-#define N_MFCC         13
-#define N_TOTAL        (N_WIN * N_MFCC)          /* 832 */
-#define N_SAMPLES      16640                     /* (64-1)*256 + 512 */
-#define CHUNK          256                       /* MUST evenly divide N_SAMPLES (16640 / 256 = 65) */
-#define VOTE_WINDOWS   5                         /* majority-vote window */
-#define VOTE_THRESH    3                         /* >=3 siren -> SIREN DETECTED */
-#define RMS_THRESHOLD  0.015f                    /* Skip inference if quieter than this */
-#define CONF_THRESHOLD 0.75f                     /* Only count votes with >75% confidence */
+#define N_WIN            64
+#define N_MFCC           13
+#define N_TOTAL          (N_WIN * N_MFCC)          /* 832 */
+#define N_SAMPLES        16640                     /* (64-1)*256 + 512 */
+#define CHUNK            512                       /* I2S read chunk size */
+#define VOTE_WINDOWS     5                         /* majority-vote window */
+#define VOTE_THRESH      3                         /* >=3 siren -> SIREN DETECTED */
+#define RMS_THRESHOLD    0.02f                     /* Skip inference if quieter than this */
+#define CONF_THRESHOLD   0.75f                     /* Require 75% confidence to count as a siren vote */
 #define TASK_STACK_INFERENCE 16384
 #define TASK_STACK_CAPTURE   4096
 
@@ -82,13 +82,9 @@ static void audio_capture_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-        
-        /* Copy chunk into current write buffer */
         memcpy(&s_audio_buf[s_wr][fill], chunk, sizeof(chunk));
         fill += CHUNK;
-        
         if (fill >= N_SAMPLES) {
-            /* Buffer full: publish it and switch to the other buffer */
             s_rd = s_wr;
             s_wr = 1 - s_wr;
             fill = 0;
@@ -107,25 +103,32 @@ static void inference_task(void *arg)
     ESP_LOGI(TAG, "inference_task started on core %d", xPortGetCoreID());
 
     while (1) {
-        /* Wait for a full block */
         if (xSemaphoreTake(s_block_ready, portMAX_DELAY) != pdTRUE) {
             continue;
         }
         int buf_idx = s_rd;
 
-        /* ---- 1. RMS volume meter ---- */
+        /* ---- 1. RMS volume meter & Max PCM check ---- */
         float sum_sq = 0.0f;
+        int16_t max_pcm = 0;
+        
         for (int i = 0; i < N_SAMPLES; i++) {
-            float sample = (float)s_audio_buf[buf_idx][i] / 32768.0f;
+            int16_t pcm = s_audio_buf[buf_idx][i];
+            int16_t abs_pcm = (pcm < 0) ? -pcm : pcm;
+            if (abs_pcm > max_pcm) max_pcm = abs_pcm;
+            
+            float sample = (float)pcm / 32768.0f;
             sum_sq += sample * sample;
         }
         float rms = sqrtf(sum_sq / (float)N_SAMPLES);
 
         /* ---- 2. RMS GATING: Skip inference if too quiet ---- */
         if (rms < RMS_THRESHOLD) {
-            ESP_LOGD(TAG, "Silence (RMS=%.4f), skipping", rms);
-            vote_siren = 0;     /* Reset vote on silence */
+            /* Reset votes on silence to prevent stale detections */
+            vote_siren = 0;
             vote_count = 0;
+            /* Optional: Uncomment the next line to see silence logs, but it spams the terminal */
+            // ESP_LOGD(TAG, "Silence (RMS=%.3f, MaxPCM=%d), skipping", rms, max_pcm);
             continue;
         }
 
@@ -148,11 +151,9 @@ static void inference_task(void *arg)
         float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
         float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
         int pred = (p1 > p0) ? 1 : 0;
-
-        /* ---- 7. Confidence threshold ---- */
         float confidence = (pred == 1) ? p1 : p0;
 
-        /* ---- 8. Majority vote (5-window) ---- */
+        /* ---- 7. Majority vote with Confidence Threshold ---- */
         if (pred == 1 && confidence >= CONF_THRESHOLD) {
             vote_siren++;
         }
@@ -161,13 +162,11 @@ static void inference_task(void *arg)
         if (vote_count >= VOTE_WINDOWS) {
             bool siren = (vote_siren >= VOTE_THRESH);
             if (siren) {
-                /* WARNING level ensures this always prints to serial */
-                ESP_LOGW(TAG, "🚨 SIREN DETECTED [%d/%d] (conf: %.2f) [RMS: %.4f]",
-                         vote_siren, VOTE_WINDOWS, p1, rms);
+                ESP_LOGW(TAG, "🚨 SIREN DETECTED [%d/%d] (conf: %.2f) [RMS: %.3f, MaxPCM: %d]",
+                         vote_siren, VOTE_WINDOWS, confidence, rms, max_pcm);
             } else {
-                /* DEBUG level hides normal noise from cluttering the terminal */
-                ESP_LOGD(TAG, "NOISE [%d/%d] (conf: %.2f) [RMS: %.4f]",
-                         vote_siren, VOTE_WINDOWS, p0, rms);
+                ESP_LOGI(TAG, "🔇 Background Noise [%d/%d] (conf: %.2f) [RMS: %.3f, MaxPCM: %d]",
+                         vote_siren, VOTE_WINDOWS, confidence, rms, max_pcm);
             }
             vote_siren = 0;
             vote_count = 0;
@@ -180,7 +179,7 @@ static void inference_task(void *arg)
 /* ------------------------------------------------------------------ */
 void app_main(void)
 {
-    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v3 (Buffer Overflow Fixed)");
+    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v3 (RMS Gate + Confidence + MaxPCM)");
     
     mfcc_init();
     ESP_LOGI(TAG, "MFCC Init: OK");
@@ -215,9 +214,6 @@ void app_main(void)
     ESP_LOGI(TAG, "Pipeline started: capture(Core0) -> inference(Core1)");
 }
 
-/* ------------------------------------------------------------------ */
-/*  Optional offline parity test                                      */
-/* ------------------------------------------------------------------ */
 #ifdef RP_PARITY_TEST
 static float rel_l2(const float *a, const float *b)
 {
