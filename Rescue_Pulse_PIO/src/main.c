@@ -8,7 +8,6 @@
 #include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "driver/gpio.h"       // <--- ADDED: Required for LED GPIO
 #include "mfcc.h"
 #include "mel_tables.h"
 #include "model_config.h"
@@ -24,27 +23,24 @@ static const char *TAG = "rescuepulse";
 /* ------------------------------------------------------------------ */
 /*  Audio pipeline constants                                          */
 /* ------------------------------------------------------------------ */
-#define N_WIN       64
-#define N_MFCC      13
-#define N_TOTAL     (N_WIN * N_MFCC)          /* 832 */
-#define N_SAMPLES   16640                     /* (64-1)*256 + 512 */
-#define CHUNK       512                       /* I2S read chunk size */
-#define VOTE_WINDOWS 5                        /* majority-vote window */
-#define VOTE_THRESH  3                        /* >=3 siren -> SIREN DETECTED */
+#define N_WIN          64
+#define N_MFCC         13
+#define N_TOTAL        (N_WIN * N_MFCC)          /* 832 */
+#define N_SAMPLES      16640                     /* (64-1)*256 + 512 */
+#define CHUNK          256                       /* MUST evenly divide N_SAMPLES (16640 / 256 = 65) */
+#define VOTE_WINDOWS   5                         /* majority-vote window */
+#define VOTE_THRESH    3                         /* >=3 siren -> SIREN DETECTED */
+#define RMS_THRESHOLD  0.015f                    /* Skip inference if quieter than this */
+#define CONF_THRESHOLD 0.75f                     /* Only count votes with >75% confidence */
 #define TASK_STACK_INFERENCE 16384
 #define TASK_STACK_CAPTURE   4096
-
-/* --- NEW: Thresholds for real-world filtering --- */
-#define RMS_THRESHOLD 0.015f                  /* Skip inference if quieter than this */
-#define CONFIDENCE_THRESHOLD 0.75f            /* Only count votes with >75% confidence */
-#define LED_GPIO 2                            /* Change to your board's LED pin (e.g., 2 or 48) */
 
 /* ------------------------------------------------------------------ */
 /*  Static buffers - NO heap allocation after init                    */
 /* ------------------------------------------------------------------ */
 static int16_t s_audio_buf[2][N_SAMPLES];
-static volatile int s_wr = 0;
-static volatile int s_rd = 0;
+static volatile int s_wr = 0;                 /* buffer being filled */
+static volatile int s_rd = 0;                 /* buffer ready for inference */
 static float   s_mfcc[N_WIN][N_MFCC];
 static int8_t  s_q_in[N_TOTAL];
 static int8_t  s_q_out[2];
@@ -86,9 +82,13 @@ static void audio_capture_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
+        
+        /* Copy chunk into current write buffer */
         memcpy(&s_audio_buf[s_wr][fill], chunk, sizeof(chunk));
         fill += CHUNK;
+        
         if (fill >= N_SAMPLES) {
+            /* Buffer full: publish it and switch to the other buffer */
             s_rd = s_wr;
             s_wr = 1 - s_wr;
             fill = 0;
@@ -107,12 +107,13 @@ static void inference_task(void *arg)
     ESP_LOGI(TAG, "inference_task started on core %d", xPortGetCoreID());
 
     while (1) {
+        /* Wait for a full block */
         if (xSemaphoreTake(s_block_ready, portMAX_DELAY) != pdTRUE) {
             continue;
         }
         int buf_idx = s_rd;
 
-        /* ---- RMS volume meter ---- */
+        /* ---- 1. RMS volume meter ---- */
         float sum_sq = 0.0f;
         for (int i = 0; i < N_SAMPLES; i++) {
             float sample = (float)s_audio_buf[buf_idx][i] / 32768.0f;
@@ -120,40 +121,39 @@ static void inference_task(void *arg)
         }
         float rms = sqrtf(sum_sq / (float)N_SAMPLES);
 
-        /* ---- RMS GATING: Skip inference if too quiet ---- */
+        /* ---- 2. RMS GATING: Skip inference if too quiet ---- */
         if (rms < RMS_THRESHOLD) {
-            ESP_LOGD(TAG, "Silence detected (RMS=%.4f), skipping", rms);
-            vote_siren = 0;
+            ESP_LOGD(TAG, "Silence (RMS=%.4f), skipping", rms);
+            vote_siren = 0;     /* Reset vote on silence */
             vote_count = 0;
-            continue; /* Skip to next block */
+            continue;
         }
 
-        /* ---- MFCC extraction ---- */
+        /* ---- 3. MFCC extraction ---- */
         int64_t t0 = esp_timer_get_time();
         mfcc_extract_block(s_audio_buf[buf_idx], s_mfcc);
         int64_t t1 = esp_timer_get_time();
         float mfcc_ms = (float)(t1 - t0) / 1000.0f;
 
-        /* ---- Quantize ---- */
+        /* ---- 4. Quantize ---- */
         quantize_mfcc(s_mfcc, s_q_in);
 
-        /* ---- Inference ---- */
+        /* ---- 5. Inference ---- */
         if (!inference_run(s_q_in, s_q_out)) {
             ESP_LOGE(TAG, "inference_run failed");
             continue;
         }
 
-        /* ---- Dequantize softmax scores ---- */
-        // FIXED: Added missing closing parenthesis here
+        /* ---- 6. Dequantize softmax scores ---- */
         float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
         float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
         int pred = (p1 > p0) ? 1 : 0;
 
-        /* ---- Confidence threshold ---- */
+        /* ---- 7. Confidence threshold ---- */
         float confidence = (pred == 1) ? p1 : p0;
 
-        /* ---- Majority vote (5-window) ---- */
-        if (pred == 1 && confidence >= CONFIDENCE_THRESHOLD) {
+        /* ---- 8. Majority vote (5-window) ---- */
+        if (pred == 1 && confidence >= CONF_THRESHOLD) {
             vote_siren++;
         }
         vote_count++;
@@ -161,12 +161,11 @@ static void inference_task(void *arg)
         if (vote_count >= VOTE_WINDOWS) {
             bool siren = (vote_siren >= VOTE_THRESH);
             if (siren) {
+                /* WARNING level ensures this always prints to serial */
                 ESP_LOGW(TAG, "🚨 SIREN DETECTED [%d/%d] (conf: %.2f) [RMS: %.4f]",
                          vote_siren, VOTE_WINDOWS, p1, rms);
-                gpio_set_level(LED_GPIO, 1);
-                vTaskDelay(pdMS_TO_TICKS(2000));
-                gpio_set_level(LED_GPIO, 0);
             } else {
+                /* DEBUG level hides normal noise from cluttering the terminal */
                 ESP_LOGD(TAG, "NOISE [%d/%d] (conf: %.2f) [RMS: %.4f]",
                          vote_siren, VOTE_WINDOWS, p0, rms);
             }
@@ -181,16 +180,8 @@ static void inference_task(void *arg)
 /* ------------------------------------------------------------------ */
 void app_main(void)
 {
-    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v2");
-
-    /* Initialize LED GPIO */
-    gpio_config_t led_cfg = {
-        .pin_bit_mask = (1ULL << LED_GPIO),
-        .mode = GPIO_MODE_OUTPUT,
-    };
-    gpio_config(&led_cfg);
-    gpio_set_level(LED_GPIO, 0);
-
+    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v3 (Buffer Overflow Fixed)");
+    
     mfcc_init();
     ESP_LOGI(TAG, "MFCC Init: OK");
 
@@ -239,10 +230,7 @@ static float rel_l2(const float *a, const float *b)
     return sqrtf(num / den);
 }
 
-static void run_tag(const char   *tag,
-                    const int16_t *pcm,
-                    const float   *exp_mfcc,
-                    int            expected_class)
+static void run_tag(const char *tag, const int16_t *pcm, const float *exp_mfcc, int expected_class)
 {
     int64_t t0 = esp_timer_get_time();
     mfcc_extract_block(pcm, s_mfcc);
@@ -265,8 +253,7 @@ static void run_tag(const char   *tag,
     int pred = (p1 > p0) ? 1 : 0;
 
     bool pass_inf = (pred == expected_class);
-    ESP_LOGI(TAG,
-             "%s Inference: Predicted %d (Expected %d) - %s  [scores %.4f / %.4f]",
+    ESP_LOGI(TAG, "%s Inference: Predicted %d (Expected %d) - %s  [scores %.4f / %.4f]",
              tag, pred, expected_class, pass_inf ? "PASS" : "FAIL", p0, p1);
 }
 
