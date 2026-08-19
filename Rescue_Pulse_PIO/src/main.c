@@ -8,6 +8,7 @@
 #include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "driver/gpio.h"       // <--- ADDED: Required for LED GPIO
 #include "mfcc.h"
 #include "mel_tables.h"
 #include "model_config.h"
@@ -28,28 +29,25 @@ static const char *TAG = "rescuepulse";
 #define N_TOTAL     (N_WIN * N_MFCC)          /* 832 */
 #define N_SAMPLES   16640                     /* (64-1)*256 + 512 */
 #define CHUNK       512                       /* I2S read chunk size */
-
 #define VOTE_WINDOWS 5                        /* majority-vote window */
 #define VOTE_THRESH  3                        /* >=3 siren -> SIREN DETECTED */
-
 #define TASK_STACK_INFERENCE 16384
 #define TASK_STACK_CAPTURE   4096
 
-#define LED_GPIO 41 
+/* --- NEW: Thresholds for real-world filtering --- */
+#define RMS_THRESHOLD 0.015f                  /* Skip inference if quieter than this */
+#define CONFIDENCE_THRESHOLD 0.75f            /* Only count votes with >75% confidence */
+#define LED_GPIO 2                            /* Change to your board's LED pin (e.g., 2 or 48) */
 
 /* ------------------------------------------------------------------ */
 /*  Static buffers - NO heap allocation after init                    */
 /* ------------------------------------------------------------------ */
-/* Ping-pong double buffering: capture fills buf[wr]; on full,
- * rd=wr; wr=1-wr; give semaphore. Inference reads buf[rd]. */
 static int16_t s_audio_buf[2][N_SAMPLES];
-static volatile int s_wr = 0;                 /* buffer being filled */
-static volatile int s_rd = 0;                 /* buffer ready for inference */
-
+static volatile int s_wr = 0;
+static volatile int s_rd = 0;
 static float   s_mfcc[N_WIN][N_MFCC];
 static int8_t  s_q_in[N_TOTAL];
 static int8_t  s_q_out[2];
-
 static SemaphoreHandle_t s_block_ready = NULL;
 
 #ifdef RP_PARITY_TEST
@@ -57,7 +55,7 @@ static void run_parity_test(void);
 #endif
 
 /* ------------------------------------------------------------------ */
-/*  Quantization (identical to Phase 7 parity test)                   */
+/*  Quantization                                                      */
 /* ------------------------------------------------------------------ */
 static void quantize_mfcc(const float mfcc[N_WIN][N_MFCC], int8_t *out)
 {
@@ -75,28 +73,22 @@ static void quantize_mfcc(const float mfcc[N_WIN][N_MFCC], int8_t *out)
 
 /* ------------------------------------------------------------------ */
 /*  audio_capture_task  (Core 0)                                      */
-/*  Continuously reads I2S DMA into the ping-pong buffers.            */
 /* ------------------------------------------------------------------ */
 static void audio_capture_task(void *arg)
 {
     static int16_t chunk[CHUNK];
     size_t fill = 0;
-
     ESP_LOGI(TAG, "audio_capture_task started on core %d", xPortGetCoreID());
-
+    
     while (1) {
         if (i2s_capture_read(chunk, CHUNK) != ESP_OK) {
             ESP_LOGE(TAG, "I2S read failed - retrying");
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-
-        /* Copy chunk into current write buffer */
         memcpy(&s_audio_buf[s_wr][fill], chunk, sizeof(chunk));
         fill += CHUNK;
-
         if (fill >= N_SAMPLES) {
-            /* Buffer full: publish it and switch to the other buffer */
             s_rd = s_wr;
             s_wr = 1 - s_wr;
             fill = 0;
@@ -107,22 +99,17 @@ static void audio_capture_task(void *arg)
 
 /* ------------------------------------------------------------------ */
 /*  inference_task  (Core 1)                                          */
-/*  Waits for a full 16,640-sample block, runs MFCC + inference,      */
-/*  applies 5-window majority vote, prints result.                    */
 /* ------------------------------------------------------------------ */
 static void inference_task(void *arg)
 {
     int vote_siren = 0;
     int vote_count = 0;
-
     ESP_LOGI(TAG, "inference_task started on core %d", xPortGetCoreID());
 
     while (1) {
-        /* Wait for a full block */
         if (xSemaphoreTake(s_block_ready, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-
         int buf_idx = s_rd;
 
         /* ---- RMS volume meter ---- */
@@ -134,13 +121,11 @@ static void inference_task(void *arg)
         float rms = sqrtf(sum_sq / (float)N_SAMPLES);
 
         /* ---- RMS GATING: Skip inference if too quiet ---- */
-        #define RMS_THRESHOLD 0.015f  /* Adjust based on your environment */
         if (rms < RMS_THRESHOLD) {
-            ESP_LOGD(TAG, "Silence detected (RMS=%.4f), skipping inference", rms);
-            /* Reset vote counter on silence to avoid stale detections */
+            ESP_LOGD(TAG, "Silence detected (RMS=%.4f), skipping", rms);
             vote_siren = 0;
             vote_count = 0;
-            continue;  /* Skip to next block */
+            continue; /* Skip to next block */
         }
 
         /* ---- MFCC extraction ---- */
@@ -159,12 +144,12 @@ static void inference_task(void *arg)
         }
 
         /* ---- Dequantize softmax scores ---- */
+        // FIXED: Added missing closing parenthesis here
         float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
-        float p1 = ((float)s_q_out[1] - (float)g_out_zp * g_out_scale;
+        float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
         int pred = (p1 > p0) ? 1 : 0;
 
         /* ---- Confidence threshold ---- */
-        #define CONFIDENCE_THRESHOLD 0.75f  /* Only count votes with >75% confidence */
         float confidence = (pred == 1) ? p1 : p0;
 
         /* ---- Majority vote (5-window) ---- */
@@ -176,18 +161,18 @@ static void inference_task(void *arg)
         if (vote_count >= VOTE_WINDOWS) {
             bool siren = (vote_siren >= VOTE_THRESH);
             if (siren) {
-                /* Only log detections prominently */
                 ESP_LOGW(TAG, "🚨 SIREN DETECTED [%d/%d] (conf: %.2f) [RMS: %.4f]",
-                        vote_siren, VOTE_WINDOWS, p1, rms);
+                         vote_siren, VOTE_WINDOWS, p1, rms);
+                gpio_set_level(LED_GPIO, 1);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                gpio_set_level(LED_GPIO, 0);
             } else {
-                /* Log noise detections at debug level */
                 ESP_LOGD(TAG, "NOISE [%d/%d] (conf: %.2f) [RMS: %.4f]",
-                        vote_siren, VOTE_WINDOWS, p0, rms);
+                         vote_siren, VOTE_WINDOWS, p0, rms);
             }
             vote_siren = 0;
             vote_count = 0;
         }
-        /* Remove the else block that logs every window */
     }
 }
 
@@ -196,7 +181,15 @@ static void inference_task(void *arg)
 /* ------------------------------------------------------------------ */
 void app_main(void)
 {
-    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v1");
+    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v2");
+
+    /* Initialize LED GPIO */
+    gpio_config_t led_cfg = {
+        .pin_bit_mask = (1ULL << LED_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+    };
+    gpio_config(&led_cfg);
+    gpio_set_level(LED_GPIO, 0);
 
     mfcc_init();
     ESP_LOGI(TAG, "MFCC Init: OK");
@@ -213,15 +206,6 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "I2S Init: OK");
 
-        /* Configure LED GPIO */
-    gpio_config_t led_cfg = {
-        .pin_bit_mask = (1ULL << LED_GPIO),
-        .mode = GPIO_MODE_OUTPUT,
-    };
-    gpio_config(&led_cfg);
-    gpio_set_level(LED_GPIO, 0);  /* LED off initially */
-
-    /* Create block-ready semaphore */
     s_block_ready = xSemaphoreCreateBinary();
     if (s_block_ready == NULL) {
         ESP_LOGE(TAG, "Semaphore create failed");
@@ -229,11 +213,9 @@ void app_main(void)
     }
 
 #ifdef RP_PARITY_TEST
-    /* Offline parity test (compile with -DRP_PARITY_TEST) */
     run_parity_test();
 #endif
 
-    /* Create tasks pinned to separate cores */
     xTaskCreatePinnedToCore(audio_capture_task, "audio_capture",
                             TASK_STACK_CAPTURE, NULL, 5, NULL, 0);
     xTaskCreatePinnedToCore(inference_task, "inference",
@@ -243,10 +225,9 @@ void app_main(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  Optional offline parity test (compile with -DRP_PARITY_TEST)      */
+/*  Optional offline parity test                                      */
 /* ------------------------------------------------------------------ */
 #ifdef RP_PARITY_TEST
-
 static float rel_l2(const float *a, const float *b)
 {
     float num = 0.0f, den = 0.0f;
@@ -282,6 +263,7 @@ static void run_tag(const char   *tag,
     float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
     float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
     int pred = (p1 > p0) ? 1 : 0;
+
     bool pass_inf = (pred == expected_class);
     ESP_LOGI(TAG,
              "%s Inference: Predicted %d (Expected %d) - %s  [scores %.4f / %.4f]",
@@ -294,5 +276,4 @@ static void run_parity_test(void)
     run_tag("Noise", tv_noise_pcm, tv_noise_mfcc, TV_NOISE_CLASS);
     ESP_LOGI(TAG, "Parity test done");
 }
-
 #endif /* RP_PARITY_TEST */
