@@ -108,23 +108,26 @@ static void inference_task(void *arg)
         }
         int buf_idx = s_rd;
 
-        /* ---- 1. RMS volume meter & Max PCM check ---- */
-        float sum_sq = 0.0f;
+        /* ---- 1. RMS volume meter (AC RMS with DC offset removed) & Max PCM check ---- */
+        float sum_pcm = 0.0f;
         int16_t max_pcm = 0;
-        
         for (int i = 0; i < N_SAMPLES; i++) {
             int16_t pcm = s_audio_buf[buf_idx][i];
             int16_t abs_pcm = (pcm < 0) ? -pcm : pcm;
             if (abs_pcm > max_pcm) max_pcm = abs_pcm;
-            
-            float sample = (float)pcm / 32768.0f;
-            sum_sq += sample * sample;
+            sum_pcm += (float)pcm;
+        }
+        float mean_pcm = sum_pcm / (float)N_SAMPLES;
+
+        float sum_sq = 0.0f;
+        for (int i = 0; i < N_SAMPLES; i++) {
+            float ac_sample = ((float)s_audio_buf[buf_idx][i] - mean_pcm) / 32768.0f;
+            sum_sq += ac_sample * ac_sample;
         }
         float rms = sqrtf(sum_sq / (float)N_SAMPLES);
 
         /* ---- 2. RMS GATING: Skip inference if too quiet ---- */
         if (rms < RMS_THRESHOLD) {
-continue;
 
             /* Reset votes on silence to prevent stale detections */
             vote_siren = 0;
@@ -133,6 +136,20 @@ continue;
             // ESP_LOGD(TAG, "Silence (RMS=%.3f, MaxPCM=%d), skipping", rms, max_pcm);
             continue;
         }
+        #ifdef RP_DUMP_RAW_BLOCK
+{
+    static int dump_count = 0;
+    if (rms > RMS_THRESHOLD && dump_count < 3) {   /* capture a few interesting blocks */
+        ESP_LOGI(TAG, "RAW_DUMP_BEGIN block=%d", dump_count);
+        for (int i = 0; i < N_SAMPLES; i++) {
+            printf("%04x", (uint16_t)s_audio_buf[buf_idx][i]);
+        }
+        printf("\n");
+        ESP_LOGI(TAG, "RAW_DUMP_END block=%d", dump_count);
+        dump_count++;
+    }
+}
+#endif
 
         /* ---- 3. MFCC extraction ---- */
         int64_t t0 = esp_timer_get_time();
@@ -181,7 +198,7 @@ continue;
 /* ------------------------------------------------------------------ */
 void app_main(void)
 {
-    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v3 (RMS Gate + Confidence + MaxPCM)");
+    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v4 (De-interleaved I2S + True AC RMS)");
     
     mfcc_init();
     ESP_LOGI(TAG, "MFCC Init: OK");
