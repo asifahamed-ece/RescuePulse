@@ -27,11 +27,11 @@ static const char *TAG = "rescuepulse";
 #define N_MFCC           13
 #define N_TOTAL          (N_WIN * N_MFCC)          /* 832 */
 #define N_SAMPLES        16640                     /* (64-1)*256 + 512 */
-#define CHUNK            512                       /* I2S read chunk size */
+#define CHUNK            256                       /* I2S read chunk size */
 #define VOTE_WINDOWS     5                         /* majority-vote window */
 #define VOTE_THRESH      3                         /* >=3 siren -> SIREN DETECTED */
 #define RMS_THRESHOLD    0.02f                     /* Skip inference if quieter than this */
-#define CONF_THRESHOLD   0.75f                     /* Require 75% confidence to count as a siren vote */
+#define CONF_THRESHOLD   0.70f                     /* Require 70% confidence to count as a siren vote */
 #define TASK_STACK_INFERENCE 16384
 #define TASK_STACK_CAPTURE   4096
 
@@ -124,6 +124,8 @@ static void inference_task(void *arg)
 
         /* ---- 2. RMS GATING: Skip inference if too quiet ---- */
         if (rms < RMS_THRESHOLD) {
+continue;
+
             /* Reset votes on silence to prevent stale detections */
             vote_siren = 0;
             vote_count = 0;
