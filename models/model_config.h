@@ -15,12 +15,12 @@
 #define RP_PRE_EMPH 0.97f
 
 // ---------- Per-coefficient standardization (train-set stats) ----------
-static const float g_mfcc_mu[13]  = {-117.434525f, 4.487606f, -24.293510f, -3.709326f, -7.878681f, 0.391918f, 1.053018f, 0.541656f, -0.267191f, 1.199869f, -2.121182f, -0.288839f, -1.202343f};
-static const float g_mfcc_std[13] = {58.905327f, 23.372980f, 16.025259f, 11.863704f, 10.669017f, 8.675331f, 8.650963f, 8.861771f, 7.564023f, 7.508868f, 7.631124f, 7.605318f, 6.853130f};
+static const float g_mfcc_mu[13]  = {-118.079803f, 4.486426f, -24.299124f, -3.709732f, -7.881674f, 0.390995f, 1.050675f, 0.540529f, -0.268264f, 1.198034f, -2.121210f, -0.290062f, -1.202998f};
+static const float g_mfcc_std[13] = {63.284061f, 23.390852f, 16.044489f, 11.886513f, 10.672849f, 8.675402f, 8.650404f, 8.861875f, 7.565106f, 7.508941f, 7.631905f, 7.605822f, 6.853554f};
 
 // ---------- TFLite int8 quantization parameters ----------
-static const float g_in_scale  = 0.051951900124549866;
-static const int   g_in_zp     = 13;
+static const float g_in_scale  = 0.05669400840997696;
+static const int   g_in_zp     = 15;
 static const float g_out_scale = 0.00390625;
 static const int   g_out_zp    = -128;
 
