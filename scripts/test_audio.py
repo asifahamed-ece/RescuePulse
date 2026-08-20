@@ -42,31 +42,32 @@ import librosa
 SR, N_FFT, HOP, N_MFCC, N_MELS = 16000, 512, 256, 13, 40
 FMIN, FMAX, WINDOW, PRE = 20, 8000, "hamming", 0.97
 N_WIN, SLIDE = 64, 32
+N_WIN_SAMPLES = (N_WIN - 1) * HOP + N_FFT   # 16640
 
 audio_path, stats_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
 
-# Load audio (any format, resampled to 16k mono)
 y, _ = librosa.load(audio_path, sr=SR, mono=True)
 
-# Pre-emphasis (identical to extract_features.py)
-y = np.append(y[:1], y[1:] - PRE * y[:-1])
+def mfcc_window(x, start_sample):
+    seg = x[start_sample:start_sample + N_WIN_SAMPLES]
+    if len(seg) < N_WIN_SAMPLES:
+        seg = np.pad(seg, (0, N_WIN_SAMPLES - len(seg)), mode="edge")
+    seg = np.append(seg[:1], seg[1:] - PRE * seg[:-1])   # pre-emphasis, reset per window
+    m = librosa.feature.mfcc(
+        y=seg, sr=SR, n_mfcc=N_MFCC, n_fft=N_FFT,
+        hop_length=HOP, n_mels=N_MELS, fmin=FMIN, fmax=FMAX,
+        window=WINDOW, center=False
+    )
+    return m.T   # (64, 13)
 
-# MFCC
-m = librosa.feature.mfcc(
-    y=y, sr=SR, n_mfcc=N_MFCC, n_fft=N_FFT,
-    hop_length=HOP, n_mels=N_MELS, fmin=FMIN, fmax=FMAX,
-    window=WINDOW, center=False
-)  # -> (13, T)
-
-# Window into (N_WIN, 13) slices
-T = m.shape[1]
+T = 1 + max(0, (len(y) - N_FFT) // HOP)
 if T < N_WIN:
-    m = np.pad(m, ((0, 0), (0, N_WIN - T)), mode="edge")
-    T = N_WIN
-starts = list(range(0, T - N_WIN + 1, SLIDE)) or [0]
-wins = [m[:, s:s + N_WIN].T for s in starts]
+    starts = [0]
+else:
+    starts = list(range(0, T - N_WIN + 1, SLIDE)) or [0]
 
-# Standardize with training stats
+wins = [mfcc_window(y, s * HOP) for s in starts]
+
 stats = np.load(stats_path)
 mu, std = stats["mu"], stats["std"]
 X = np.asarray(wins, np.float32)

@@ -7,6 +7,7 @@ import librosa
 SR, N_FFT, HOP, N_MFCC, N_MELS = 16000, 512, 256, 13, 40
 FMIN, FMAX, WINDOW, PRE = 20, 8000, "hamming", 0.97
 N_WIN   = 64                 # frames per model window (~1.04 s)
+N_WIN_SAMPLES = (N_WIN - 1) * HOP + N_FFT   # 16640 — exactly one deployed inference block
 TRAIN_STARTS = [0, 61, 122]  # fixed windows for train clips
 VAL_STARTS   = [0, 31, 62, 93, 124]  # 5 spread windows -> clip-level majority vote
 N_RAND_TRAIN = 3             # extra random windows per train clip
@@ -52,25 +53,31 @@ for l, idxs in by_label.items():
 train_idx = [i for i in range(len(clips)) if i not in val_idx]
 print(f"Train clips: {len(train_idx)}  Val clips: {len(val_idx)}")
 
-def mfcc_of(path):
+def load_audio(path):
     y, _ = librosa.load(path, sr=SR, mono=True)
+    return y
 
-    # --- Manual pre-emphasis: y[n] = x[n] - 0.97 * x[n-1] ---
-    # librosa >= 0.11 removed the `preemphasis` kwarg from feature.mfcc().
-    # Doing it manually keeps train/deploy parity with the ESP32 pipeline.
-    y = np.append(y[:1], y[1:] - PRE * y[:-1])
-
-    return librosa.feature.mfcc(
-        y=y, sr=SR, n_mfcc=N_MFCC, n_fft=N_FFT,
+def mfcc_window(x, start_sample):
+    """MFCC for exactly one (N_WIN, N_MFCC) block, computed FRESH from raw
+    audio for just this window. Matches firmware mfcc.c / gen_mfcc_test_vectors.py
+    exactly: pre-emphasis resets per-window (y[0]=x[0]) and the top_db floor
+    is relative to this block's own max, not the whole clip's."""
+    seg = x[start_sample:start_sample + N_WIN_SAMPLES]
+    if len(seg) < N_WIN_SAMPLES:
+        seg = np.pad(seg, (0, N_WIN_SAMPLES - len(seg)), mode="edge")
+    seg = np.append(seg[:1], seg[1:] - PRE * seg[:-1])   # pre-emphasis, reset per window
+    m = librosa.feature.mfcc(
+        y=seg, sr=SR, n_mfcc=N_MFCC, n_fft=N_FFT,
         hop_length=HOP, n_mels=N_MELS, fmin=FMIN, fmax=FMAX,
         window=WINDOW, center=False
-    )  # -> (13, 186)
+    )  # -> (13, 64)
+    return m.T   # (64, 13)
 
-def windows(m, starts):
-    T = m.shape[1]; out = []
+def windows_from_audio(x, starts, T):
+    out = []
     for s in starts:
         s = min(s, T - N_WIN)
-        out.append(m[:, s:s+N_WIN].T)          # (64, 13)
+        out.append(mfcc_window(x, s * HOP))
     return out
 
 def augment(w):
@@ -98,9 +105,10 @@ clip_ids_tr, clip_ids_va = [], []       # per-window clip id for majority voting
 
 for i in train_idx:
     p, l, n = clips[i]
-    m = mfcc_of(p)
-    starts = TRAIN_STARTS + [rng.randint(0, 186 - N_WIN) for _ in range(N_RAND_TRAIN)]
-    for w in windows(m, starts):
+    x = load_audio(p)
+    T = 1 + (len(x) - N_FFT) // HOP
+    starts = TRAIN_STARTS + [rng.randint(0, T - N_WIN) for _ in range(N_RAND_TRAIN)]
+    for w in windows_from_audio(x, starts, T):
         X_tr.append(w); y_tr.append(l); clip_ids_tr.append(n)
         # augmented copies
         for _ in range(N_AUG_TRAIN):
@@ -108,8 +116,9 @@ for i in train_idx:
                 X_tr.append(augment(w)); y_tr.append(l); clip_ids_tr.append(n)
 for i in val_idx:
     p, l, n = clips[i]
-    m = mfcc_of(p)
-    for w in windows(m, VAL_STARTS):
+    x = load_audio(p)
+    T = 1 + (len(x) - N_FFT) // HOP
+    for w in windows_from_audio(x, VAL_STARTS, T):
         X_va.append(w); y_va.append(l); clip_ids_va.append(n)
 
 X_tr, y_tr = np.asarray(X_tr, np.float32), np.asarray(y_tr, np.int32)
