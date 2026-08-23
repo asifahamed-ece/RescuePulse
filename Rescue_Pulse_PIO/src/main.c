@@ -8,6 +8,7 @@
 #include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_dsp.h"
 #include "mfcc.h"
 #include "mel_tables.h"
 #include "model_config.h"
@@ -36,15 +37,47 @@ static const char *TAG = "rescuepulse";
 #define TASK_STACK_CAPTURE   4096
 
 /* ------------------------------------------------------------------ */
+/*  DoA / TDoA parameters                                             */
+/* ------------------------------------------------------------------ */
+#define TDOA_MAX_LAG         32                        /* Search +/- 32 samples (~2ms @ 16kHz) */
+#define TDOA_PAT_LEN         1024                      /* Pattern window length for correlation */
+#define TDOA_SIG_LEN         (TDOA_PAT_LEN + 2 * TDOA_MAX_LAG) /* 1088 */
+#define TDOA_CORR_LEN        (2 * TDOA_MAX_LAG + 1)    /* 65 */
+#define TDOA_LAG_THRESHOLD   2                         /* Threshold for Left / Right decision */
+
+typedef enum {
+    DOA_CENTER = 0,
+    DOA_LEFT,
+    DOA_RIGHT
+} doa_direction_t;
+
+static const char *doa_to_string(doa_direction_t dir)
+{
+    switch (dir) {
+        case DOA_LEFT:   return "LEFT";
+        case DOA_RIGHT:  return "RIGHT";
+        case DOA_CENTER:
+        default:         return "CENTER";
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Static buffers - NO heap allocation after init                    */
 /* ------------------------------------------------------------------ */
-static int16_t s_audio_buf[2][N_SAMPLES];
+/* Dimension 1: Ping-Pong (2), Dimension 2: Channel L/R (2), Dimension 3: Samples */
+static int16_t s_audio_buf[2][2][N_SAMPLES];
 static volatile int s_wr = 0;                 /* buffer being filled */
 static volatile int s_rd = 0;                 /* buffer ready for inference */
 static float   s_mfcc[N_WIN][N_MFCC];
 static int8_t  s_q_in[N_TOTAL];
 static int8_t  s_q_out[2];
 static SemaphoreHandle_t s_block_ready = NULL;
+
+/* TDOA scratch buffers (static to prevent runtime heap allocation) */
+static float   s_tdoa_sig[TDOA_SIG_LEN];
+static float   s_tdoa_pat[TDOA_PAT_LEN];
+static float   s_tdoa_corr[TDOA_CORR_LEN];
+static float   s_tdoa_accum[TDOA_CORR_LEN];
 
 #ifdef RP_PARITY_TEST
 static void run_parity_test(void);
@@ -68,21 +101,101 @@ static void quantize_mfcc(const float mfcc[N_WIN][N_MFCC], int8_t *out)
 }
 
 /* ------------------------------------------------------------------ */
+/*  Time Difference of Arrival (TDOA) Direction Estimation            */
+/* ------------------------------------------------------------------ */
+static doa_direction_t estimate_tdoa_direction(const int16_t *buf_l, const int16_t *buf_r, int *out_lag)
+{
+    memset(s_tdoa_accum, 0, sizeof(s_tdoa_accum));
+
+    /* Average cross-correlation across 3 segments within the audio block */
+    const int num_segments = 3;
+    const int segment_offsets[3] = {
+        (N_SAMPLES / 4) - (TDOA_SIG_LEN / 2),
+        (N_SAMPLES / 2) - (TDOA_SIG_LEN / 2),
+        (3 * N_SAMPLES / 4) - (TDOA_SIG_LEN / 2)
+    };
+
+    for (int seg = 0; seg < num_segments; seg++) {
+        int sig_offset = segment_offsets[seg];
+        if (sig_offset < 0) sig_offset = 0;
+        if (sig_offset + TDOA_SIG_LEN > N_SAMPLES) sig_offset = N_SAMPLES - TDOA_SIG_LEN;
+        int pat_offset = sig_offset + TDOA_MAX_LAG;
+
+        /* Remove DC offset from Left and Right segment slices */
+        float sum_sig = 0.0f;
+        for (int i = 0; i < TDOA_SIG_LEN; i++) {
+            sum_sig += (float)buf_l[sig_offset + i];
+        }
+        float mean_sig = sum_sig / (float)TDOA_SIG_LEN;
+
+        float sum_pat = 0.0f;
+        for (int i = 0; i < TDOA_PAT_LEN; i++) {
+            sum_pat += (float)buf_r[pat_offset + i];
+        }
+        float mean_pat = sum_pat / (float)TDOA_PAT_LEN;
+
+        for (int i = 0; i < TDOA_SIG_LEN; i++) {
+            s_tdoa_sig[i] = ((float)buf_l[sig_offset + i] - mean_sig) / 32768.0f;
+        }
+        for (int i = 0; i < TDOA_PAT_LEN; i++) {
+            s_tdoa_pat[i] = ((float)buf_r[pat_offset + i] - mean_pat) / 32768.0f;
+        }
+
+        /* ESP-DSP cross-correlation: Signal = Left channel, Pattern = Right channel */
+        esp_err_t err = dsps_corr_f32(s_tdoa_sig, TDOA_SIG_LEN, s_tdoa_pat, TDOA_PAT_LEN, s_tdoa_corr);
+        if (err == ESP_OK) {
+            for (int i = 0; i < TDOA_CORR_LEN; i++) {
+                s_tdoa_accum[i] += s_tdoa_corr[i];
+            }
+        }
+    }
+
+    /* Find peak cross-correlation lag */
+    float max_corr = -1e30f;
+    int peak_idx = TDOA_MAX_LAG;
+    for (int i = 0; i < TDOA_CORR_LEN; i++) {
+        if (s_tdoa_accum[i] > max_corr) {
+            max_corr = s_tdoa_accum[i];
+            peak_idx = i;
+        }
+    }
+
+    /* Lag relative to center (0 lag is at index TDOA_MAX_LAG):
+     * lag > 0: Right channel arrived first -> Source on RIGHT
+     * lag < 0: Left channel arrived first  -> Source on LEFT
+     */
+    int lag = peak_idx - TDOA_MAX_LAG;
+    if (out_lag != NULL) {
+        *out_lag = lag;
+    }
+
+    if (lag > TDOA_LAG_THRESHOLD) {
+        return DOA_RIGHT;
+    } else if (lag < -TDOA_LAG_THRESHOLD) {
+        return DOA_LEFT;
+    } else {
+        return DOA_CENTER;
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /*  audio_capture_task  (Core 0)                                      */
 /* ------------------------------------------------------------------ */
 static void audio_capture_task(void *arg)
 {
-    static int16_t chunk[CHUNK];
+    static int16_t chunk_l[CHUNK];
+    static int16_t chunk_r[CHUNK];
     size_t fill = 0;
     ESP_LOGI(TAG, "audio_capture_task started on core %d", xPortGetCoreID());
     
     while (1) {
-        if (i2s_capture_read(chunk, CHUNK) != ESP_OK) {
-            ESP_LOGE(TAG, "I2S read failed - retrying");
+        if (i2s_capture_read_stereo(chunk_l, chunk_r, CHUNK) != ESP_OK) {
+            ESP_LOGE(TAG, "I2S stereo read failed - retrying");
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-        memcpy(&s_audio_buf[s_wr][fill], chunk, sizeof(chunk));
+        memcpy(&s_audio_buf[s_wr][0][fill], chunk_l, sizeof(chunk_l));
+        memcpy(&s_audio_buf[s_wr][1][fill], chunk_r, sizeof(chunk_r));
         fill += CHUNK;
         if (fill >= N_SAMPLES) {
             s_rd = s_wr;
@@ -108,71 +221,82 @@ static void inference_task(void *arg)
         }
         int buf_idx = s_rd;
 
-        /* ---- 1. RMS volume meter (AC RMS with DC offset removed) & Max PCM check ---- */
-        float sum_pcm = 0.0f;
-        int16_t max_pcm = 0;
+        /* ---- 1. RMS calculation for Left & Right channels (AC RMS with DC offset removed) ---- */
+        float sum_pcm_l = 0.0f;
+        int16_t max_pcm_l = 0;
         for (int i = 0; i < N_SAMPLES; i++) {
-            int16_t pcm = s_audio_buf[buf_idx][i];
+            int16_t pcm = s_audio_buf[buf_idx][0][i];
             int16_t abs_pcm = (pcm < 0) ? -pcm : pcm;
-            if (abs_pcm > max_pcm) max_pcm = abs_pcm;
-            sum_pcm += (float)pcm;
+            if (abs_pcm > max_pcm_l) max_pcm_l = abs_pcm;
+            sum_pcm_l += (float)pcm;
         }
-        float mean_pcm = sum_pcm / (float)N_SAMPLES;
+        float mean_pcm_l = sum_pcm_l / (float)N_SAMPLES;
 
-        float sum_sq = 0.0f;
+        float sum_sq_l = 0.0f;
         for (int i = 0; i < N_SAMPLES; i++) {
-            float ac_sample = ((float)s_audio_buf[buf_idx][i] - mean_pcm) / 32768.0f;
-            sum_sq += ac_sample * ac_sample;
+            float ac = ((float)s_audio_buf[buf_idx][0][i] - mean_pcm_l) / 32768.0f;
+            sum_sq_l += ac * ac;
         }
-        float rms = sqrtf(sum_sq / (float)N_SAMPLES);
+        float rms_l = sqrtf(sum_sq_l / (float)N_SAMPLES);
 
-        /* ---- 2. RMS GATING: Skip inference if too quiet ---- */
-        if (rms < RMS_THRESHOLD) {
+        float sum_pcm_r = 0.0f;
+        int16_t max_pcm_r = 0;
+        for (int i = 0; i < N_SAMPLES; i++) {
+            int16_t pcm = s_audio_buf[buf_idx][1][i];
+            int16_t abs_pcm = (pcm < 0) ? -pcm : pcm;
+            if (abs_pcm > max_pcm_r) max_pcm_r = abs_pcm;
+            sum_pcm_r += (float)pcm;
+        }
+        float mean_pcm_r = sum_pcm_r / (float)N_SAMPLES;
 
-            /* Reset votes on silence to prevent stale detections */
+        float sum_sq_r = 0.0f;
+        for (int i = 0; i < N_SAMPLES; i++) {
+            float ac = ((float)s_audio_buf[buf_idx][1][i] - mean_pcm_r) / 32768.0f;
+            sum_sq_r += ac * ac;
+        }
+        float rms_r = sqrtf(sum_sq_r / (float)N_SAMPLES);
+
+        float max_rms = (rms_l > rms_r) ? rms_l : rms_r;
+        int active_ch = (rms_l >= rms_r) ? 0 : 1;
+        int16_t active_max_pcm = (rms_l >= rms_r) ? max_pcm_l : max_pcm_r;
+
+        /* ---- 2. RMS GATING: Skip inference if both channels are too quiet ---- */
+        if (max_rms < RMS_THRESHOLD) {
             vote_siren = 0;
             vote_count = 0;
-            /* Optional: Uncomment the next line to see silence logs, but it spams the terminal */
-            // ESP_LOGD(TAG, "Silence (RMS=%.3f, MaxPCM=%d), skipping", rms, max_pcm);
             continue;
         }
-        #ifdef RP_DUMP_RAW_BLOCK
-{
-    static int dump_count = 0;
-    if (rms > RMS_THRESHOLD && dump_count < 3) {   /* capture a few interesting blocks */
-        ESP_LOGI(TAG, "RAW_DUMP_BEGIN block=%d", dump_count);
-        for (int i = 0; i < N_SAMPLES; i++) {
-            printf("%04x", (uint16_t)s_audio_buf[buf_idx][i]);
-        }
-        printf("\n");
-        ESP_LOGI(TAG, "RAW_DUMP_END block=%d", dump_count);
-        dump_count++;
-    }
-}
-#endif
 
-        /* ---- 3. MFCC extraction ---- */
+        /* ---- 3. Time Difference of Arrival (TDOA) Direction of Arrival ---- */
+        int lag = 0;
+        doa_direction_t doa_dir = estimate_tdoa_direction(
+            s_audio_buf[buf_idx][0],
+            s_audio_buf[buf_idx][1],
+            &lag
+        );
+
+        /* ---- 4. MFCC extraction on the louder channel ---- */
         int64_t t0 = esp_timer_get_time();
-        mfcc_extract_block(s_audio_buf[buf_idx], s_mfcc);
+        mfcc_extract_block(s_audio_buf[buf_idx][active_ch], s_mfcc);
         int64_t t1 = esp_timer_get_time();
         float mfcc_ms = (float)(t1 - t0) / 1000.0f;
 
-        /* ---- 4. Quantize ---- */
+        /* ---- 5. Quantize ---- */
         quantize_mfcc(s_mfcc, s_q_in);
 
-        /* ---- 5. Inference ---- */
+        /* ---- 6. Inference ---- */
         if (!inference_run(s_q_in, s_q_out)) {
             ESP_LOGE(TAG, "inference_run failed");
             continue;
         }
 
-        /* ---- 6. Dequantize softmax scores ---- */
+        /* ---- 7. Dequantize softmax scores ---- */
         float p0 = ((float)s_q_out[0] - (float)g_out_zp) * g_out_scale;
         float p1 = ((float)s_q_out[1] - (float)g_out_zp) * g_out_scale;
         int pred = (p1 > p0) ? 1 : 0;
         float confidence = (pred == 1) ? p1 : p0;
 
-        /* ---- 7. Majority vote with Confidence Threshold ---- */
+        /* ---- 8. Majority vote with Confidence Threshold ---- */
         if (pred == 1 && confidence >= CONF_THRESHOLD) {
             vote_siren++;
         }
@@ -181,11 +305,11 @@ static void inference_task(void *arg)
         if (vote_count >= VOTE_WINDOWS) {
             bool siren = (vote_siren >= VOTE_THRESH);
             if (siren) {
-                ESP_LOGW(TAG, "🚨 SIREN DETECTED [%d/%d] (conf: %.2f) [RMS: %.3f, MaxPCM: %d]",
-                         vote_siren, VOTE_WINDOWS, confidence, rms, max_pcm);
+                ESP_LOGW(TAG, "🚨 SIREN DETECTED [%s] (Conf: %.2f) [%d/%d] [RMS L:%.3f R:%.3f, Lag: %d, MaxPCM: %d]",
+                         doa_to_string(doa_dir), confidence, vote_siren, VOTE_WINDOWS, rms_l, rms_r, lag, active_max_pcm);
             } else {
-                ESP_LOGI(TAG, "🔇 Background Noise [%d/%d] (conf: %.2f) [RMS: %.3f, MaxPCM: %d]",
-                         vote_siren, VOTE_WINDOWS, confidence, rms, max_pcm);
+                ESP_LOGI(TAG, "🔇 Background Noise [%d/%d] (Conf: %.2f) [RMS L:%.3f R:%.3f]",
+                         vote_siren, VOTE_WINDOWS, confidence, rms_l, rms_r);
             }
             vote_siren = 0;
             vote_count = 0;
@@ -198,7 +322,7 @@ static void inference_task(void *arg)
 /* ------------------------------------------------------------------ */
 void app_main(void)
 {
-    ESP_LOGI(TAG, "BUILD MARKER PHASE8 v4 (De-interleaved I2S + True AC RMS)");
+    ESP_LOGI(TAG, "BUILD MARKER PHASE9 (Dual-Mic Stereo I2S + TDOA Direction of Arrival)");
     
     mfcc_init();
     ESP_LOGI(TAG, "MFCC Init: OK");
