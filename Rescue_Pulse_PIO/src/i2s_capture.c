@@ -6,17 +6,21 @@
 
 static const char *TAG = "i2s_capture";
 
-/* INMP441 wiring (safe ESP32-S3 GPIOs) */
-#define I2S_BCLK_GPIO  4
-#define I2S_WS_GPIO    5
-#define I2S_DIN_GPIO   6
+/* Dual INMP441 wiring (ESP32-S3 GPIOs):
+ * Shared: BCLK (GPIO 15), WS (GPIO 16)
+ * Mic 1 (Left):  L/R pin tied to GND, SD pin to GPIO 17
+ * Mic 2 (Right): L/R pin tied to 3.3V, SD pin to GPIO 17 (or GPIO 18 merged on I2S RX)
+ */
+#define I2S_BCLK_GPIO  15
+#define I2S_WS_GPIO    16
+#define I2S_DIN_GPIO   17
 
 #define I2S_SAMPLE_RATE 16000
 #define I2S_DMA_DESC_NUM 6
 #define I2S_DMA_FRAME_NUM 240
 
 /* Scratch buffer for raw 32-bit I2S words (stereo slots: Left + Right).
- * Needs 2x words for n_samples mono output. */
+ * Needs 2x words for n_samples stereo output (e.g. 512 words for 256 samples). */
 #define I2S_SCRATCH_MAX_SAMPLES 1024
 static int32_t s_scratch[I2S_SCRATCH_MAX_SAMPLES];
 
@@ -39,15 +43,16 @@ esp_err_t i2s_capture_init(void)
         return ret;
     }
 
-    /* ---- Configure Standard Mode, RX only, 32-bit slot / mono ----
-     * INMP441 is 24-bit MSB-justified inside a 32-bit frame. In Philips I2S
-     * standard mode, there are 2 slots (Left + Right) per frame.
-     * With L/R tied to GND, data is in Left slot (Slot 0) and Slot 1 is zero.
-     * We capture stereo 32-bit slots and de-interleave in i2s_capture_read(). */
+    /* Configure Standard Mode, RX only, 32-bit slot / STEREO mode.
+     * INMP441 is 24-bit MSB-justified inside a 32-bit frame.
+     * In Philips I2S stereo mode:
+     * - Mic 1 (L/R -> GND) transmits in Left slot (even index, WS LOW)
+     * - Mic 2 (L/R -> VDD) transmits in Right slot (odd index, WS HIGH)
+     * We capture stereo 32-bit slots and de-interleave in i2s_capture_read_stereo(). */
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(I2S_SAMPLE_RATE),
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(
-                        I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO),
+                        I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
             .bclk = I2S_BCLK_GPIO,
@@ -77,12 +82,12 @@ esp_err_t i2s_capture_init(void)
         return ret;
     }
 
-    ESP_LOGI(TAG, "I2S RX ready: %d Hz, 32-bit slot -> 16-bit PCM, mono (BCLK=%d WS=%d DIN=%d)",
+    ESP_LOGI(TAG, "I2S RX ready: %d Hz, 32-bit slot -> 16-bit PCM, stereo (BCLK=%d WS=%d DIN=%d)",
              I2S_SAMPLE_RATE, I2S_BCLK_GPIO, I2S_WS_GPIO, I2S_DIN_GPIO);
     return ESP_OK;
 }
 
-esp_err_t i2s_capture_read(int16_t *buf, size_t n_samples)
+esp_err_t i2s_capture_read_stereo(int16_t *buf_l, int16_t *buf_r, size_t n_samples)
 {
     if (s_rx_chan == NULL) {
         return ESP_ERR_INVALID_STATE;
@@ -94,7 +99,7 @@ esp_err_t i2s_capture_read(int16_t *buf, size_t n_samples)
     }
 
     size_t bytes_read = 0;
-    /* Read 2 slots (Left + Right 32-bit words) per audio frame */
+    /* Read 2 slots (Left + Right 32-bit words) per stereo audio frame */
     size_t bytes_want = n_samples * 2 * sizeof(int32_t);
 
     esp_err_t ret = i2s_channel_read(s_rx_chan, s_scratch, bytes_want,
@@ -106,11 +111,23 @@ esp_err_t i2s_capture_read(int16_t *buf, size_t n_samples)
 
     size_t frames_read = bytes_read / (2 * sizeof(int32_t));
     for (size_t i = 0; i < frames_read; i++) {
-        /* Slot 0 (even index) contains Left channel from INMP441 */
-        buf[i] = (int16_t)(s_scratch[2 * i] >> 16);
+        /* Slot 0 (even index): Left channel (Mic 1, L/R -> GND) */
+        if (buf_l != NULL) {
+            buf_l[i] = (int16_t)(s_scratch[2 * i] >> 16);
+        }
+        /* Slot 1 (odd index): Right channel (Mic 2, L/R -> 3.3V) */
+        if (buf_r != NULL) {
+            buf_r[i] = (int16_t)(s_scratch[2 * i + 1] >> 16);
+        }
     }
     for (size_t i = frames_read; i < n_samples; i++) {
-        buf[i] = 0;
+        if (buf_l != NULL) buf_l[i] = 0;
+        if (buf_r != NULL) buf_r[i] = 0;
     }
     return ESP_OK;
+}
+
+esp_err_t i2s_capture_read(int16_t *buf, size_t n_samples)
+{
+    return i2s_capture_read_stereo(buf, NULL, n_samples);
 }
