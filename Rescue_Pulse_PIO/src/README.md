@@ -1,170 +1,124 @@
-# Rescue Pulse — Firmware Source (`src/`)
+# RescuePulse Firmware Architecture (`src/`)
 
-This directory contains the ESP32-S3 firmware that runs the real-time siren-detection pipeline. It captures audio from an INMP441 I2S microphone, extracts MFCC features, and runs a quantized int8 CNN via TensorFlow Lite for Microcontrollers — all on-device, with no cloud dependency.
-
----
-
-## 🧰 Tech Stack
-
-| Component | Purpose |
-|-----------|---------|
-| **ESP-IDF v6** (via PlatformIO) | RTOS, I2S driver, build system |
-| **PlatformIO** | Build/flash/monitor toolchain (`edgehax_esp32s3_pro` env) |
-| **ESP-DSP** (`espressif/esp-dsp ^1.4.0`) | Optimized `dsps_fft2r_fc32` real FFT + bit-reversal |
-| **TFLite Micro** (`espressif/esp-tflite-micro ^1.3.2`) | int8 inference runtime |
-| **FreeRTOS** | Dual-core task scheduling, semaphores |
+This directory contains the ESP-IDF and FreeRTOS firmware running on the ESP32-S3 microcontroller. The firmware executes continuous dual-microphone audio sampling, Time Difference of Arrival (TDOA) Direction of Arrival estimation, real-time MFCC feature extraction, and INT8 TensorFlow Lite for Microcontrollers inference with zero runtime dynamic allocations.
 
 ---
 
-## 🏗️ Architecture & Logic
+## Technical Stack & Libraries
 
-### Dual-Core FreeRTOS Design
+| Layer | Component | Details |
+|---|---|---|
+| **Build Framework** | PlatformIO with ESP-IDF v6 | Target: `edgehax_esp32s3_pro` (`lolin_s3_pro` board profile) |
+| **DSP Acceleration** | Espressif ESP-DSP (`esp-dsp ^1.4.0`) | `dsps_fft2r_fc32` real FFT, `dsps_corr_f32` cross-correlation |
+| **Neural Inference** | TensorFlow Lite for Microcontrollers | 108 KB quantized INT8 model, 200 KB PSRAM tensor arena |
+| **Operating System** | FreeRTOS (Dual-Core SMP) | Core 0: I2S DMA Capture; Core 1: Feature Extraction & Inference |
+| **Peripheral Driver** | ESP32-S3 `i2s_std` Driver | 16 kHz, 32-bit slot width, Stereo DMA RX |
 
-The ESP32-S3 has two Xtensa LX7 cores. The pipeline is split across them to keep audio capture lossless while the ML inference runs:
+---
+
+## Dual-Core Pipeline Architecture
+
+The firmware utilizes both Xtensa LX7 cores to ensure zero sample drops during neural inference:
 
 ```
-┌─────────────────────────── Core 0 ───────────────────────────┐
-│  audio_capture_task  (priority 5, 4 KB stack)                │
-│                                                              │
-│  i2s_capture_read(chunk, 256) ──►  De-interleave stereo slots│
-│                               ──►  memcpy into buf[s_wr]     │
-│                                                              │
-│  When 16,640 samples collected:                              │
-│      s_rd = s_wr;  s_wr = 1 - s_wr;                          │
-│      xSemaphoreGive(s_block_ready);                          │
-└──────────────────────────────────────────────────────────────┘
-                              │  (binary semaphore)
-                              ▼
-┌─────────────────────────── Core 1 ───────────────────────────┐
-│  inference_task  (priority 4, 16 KB stack)                   │
-│                                                              │
-│  xSemaphoreTake(s_block_ready)                               │
-│      ──► True AC RMS volume meter (DC-subtracted)            │
-│      ──► mfcc_extract_block()  (ESP-DSP FFT)                 │
-│      ──► quantize_mfcc()       (int8 affine map)             │
-│      ──► inference_run()       (TFLite Micro)                │
-│      ──► 5-window majority vote                              │
-└──────────────────────────────────────────────────────────────┘
-```
-
-- **Core 0** is dedicated to I2S DMA capture. It never blocks on ML work, so no audio samples are dropped.
-- **Core 1** waits on the semaphore, then performs the full MFCC + inference chain.
-- Task priorities (capture=5 > inference=4) ensure the producer always wins the CPU when both are ready.
-
-### Ping-Pong Double Buffering
-
-To prevent a race between the audio **producer** (Core 0) and the ML **consumer** (Core 1), two static buffers are used:
-
-```c
-static int16_t s_audio_buf[2][N_SAMPLES];   /* 2 × 16,640 int16 = 66,560 B */
-static volatile int s_wr = 0;               /* buffer being filled */
-static volatile int s_rd = 0;               /* buffer ready for inference */
-```
-
-**Protocol:**
-1. Core 0 fills `s_audio_buf[s_wr]` in 256-sample chunks.
-2. When full, Core 0 publishes it: `s_rd = s_wr; s_wr = 1 - s_wr;` then gives the semaphore.
-3. Core 1 takes the semaphore, reads `s_audio_buf[s_rd]`, and processes it.
-4. Meanwhile Core 0 is already filling the *other* buffer — hence "ping-pong".
-
-Because the producer only ever writes `s_wr` and the consumer only ever reads `s_rd`, and the switch is a single atomic publish (`s_rd = s_wr`), no mutex is needed — the semaphore alone guarantees the hand-off.
-
-### 5-Window Majority Vote & Confidence Threshold
-
-A single 1.04-second window can produce a transient spurious classification. To debounce, the firmware accumulates predictions over **5 consecutive windows** requiring both high confidence ($\ge 70\%$) and majority agreement ($\ge 3/5$):
-
-```c
-#define VOTE_WINDOWS    5
-#define VOTE_THRESH     3
-#define CONF_THRESHOLD  0.70f
-
-if (pred == 1 && confidence >= CONF_THRESHOLD) {
-    vote_siren++;
-}
-vote_count++;
-
-if (vote_count >= VOTE_WINDOWS) {
-    bool siren = (vote_siren >= VOTE_THRESH);
-    if (siren) {
-        ESP_LOGW(TAG, "🚨 SIREN DETECTED [%d/%d] (conf: %.2f)", vote_siren, VOTE_WINDOWS, confidence);
-    } else {
-        ESP_LOGI(TAG, "🔇 Background Noise [%d/%d] (conf: %.2f)", vote_siren, VOTE_WINDOWS, confidence);
-    }
-    vote_siren = 0;
-    vote_count = 0;
-}
+┌────────────────────────────── Core 0 ──────────────────────────────┐
+│  audio_capture_task  (Priority 5, 4 KB Stack)                      │
+│                                                                    │
+│  i2s_capture_read_stereo(chunk_l, chunk_r, 256)                    │
+│      ├── Read 32-bit interleaved slots from DMA                    │
+│      ├── Unpack Slot 0 (>>16) -> Left Channel (Mic 1)              │
+│      └── Unpack Slot 1 (>>16) -> Right Channel (Mic 2)             │
+│                                                                    │
+│  When 16,640 samples accumulated:                                  │
+│      s_rd = s_wr;  s_wr = 1 - s_wr;                                │
+│      xSemaphoreGive(s_block_ready);                                │
+└────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼ (Binary Semaphore)
+┌────────────────────────────── Core 1 ──────────────────────────────┐
+│  inference_task  (Priority 4, 16 KB Stack)                         │
+│                                                                    │
+│  xSemaphoreTake(s_block_ready, portMAX_DELAY)                       │
+│      ├── 1. Compute True AC RMS (DC-subtracted) on Left & Right    │
+│      ├── 2. RMS Gating: Skip inference if max(RMS_L, RMS_R) < 0.02│
+│      ├── 3. Estimate DoA: ESP-DSP Cross-Correlation (TDOA)        │
+│      │      -> Peak lag gives LEFT, RIGHT, or CENTER               │
+│      ├── 4. MFCC Feature Extraction on the louder channel (ESP-DSP)│
+│      ├── 5. INT8 Affine Quantization                               │
+│      ├── 6. TFLite Micro Inference (1D CNN)                        │
+│      └── 7. 5-Window Debounced Majority Vote                       │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ⚠️ Critical Implementation Notes (Viva & Architecture)
+## Real-World Serial Output
 
-### 1. 32-bit I2S Slots & Stereo DMA De-interleaving
-
-The INMP441 is a 24-bit MEMS microphone operating on standard Philips I2S. In Philips I2S mode, there are always **2 slots per audio frame (Left and Right)**. 
-- With `L/R` tied to GND, audio data is transmitted during the **Left slot (Slot 0)**.
-- The Right slot (Slot 1) is tristated/zero.
-
-The ESP32-S3 I2S DMA controller captures 32-bit words for **both slots**. `i2s_capture_read()` reads $2 \times N$ 32-bit words and extracts only the even indices (Left channel):
-
-```c
-size_t frames_read = bytes_read / (2 * sizeof(int32_t));
-for (size_t i = 0; i < frames_read; i++) {
-    buf[i] = (int16_t)(s_scratch[2 * i] >> 16);
-}
+```text
+I (1410146) rescuepulse: 🔇 Background Noise [0/5] (Conf: 0.91) [RMS L:0.028 R:0.031]
+W (1415336) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.99) [3/5] [RMS L:0.087 R:0.043, Lag: -4, MaxPCM: 9100]
+W (1420546) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.88) [4/5] [RMS L:0.082 R:0.047, Lag: -4, MaxPCM: 8092]
+W (1425746) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 1.00) [5/5] [RMS L:0.091 R:0.165, Lag: 5, MaxPCM: 15097]
+W (1430936) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [5/5] [RMS L:0.066 R:0.090, Lag: 5, MaxPCM: 9646]
+W (1436146) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.97) [5/5] [RMS L:0.083 R:0.060, Lag: -1, MaxPCM: 11096]
+W (1441346) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.98) [5/5] [RMS L:0.094 R:0.064, Lag: -1, MaxPCM: 10679]
+W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:0.041 R:0.042, Lag: 0, MaxPCM: 6456]
+I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
 ```
-
-This prevents zero-padding between consecutive samples, preserving continuous 16 kHz sampling and spectral integrity.
-
-### 2. ESP-DSP Packed Real-FFT Output Format
-
-`dsps_fft2r_fc32()` computes a real FFT and stores the result in a **packed complex format**:
-
-```
-index:  0        1        2        3        ...  N-2      N-1
-        Re[0]   Re[1]    Im[1]    Re[2]    ...  Re[N/2-1] Im[N/2-1]
-        (DC)    └── bin 1 ──┘      └── bin 2 ──┘   ...   └── bin N/2-1 ──┘
-```
-
-`mfcc.c` unpacks this into the power spectrum:
-
-```c
-s_power[0] = s_fft[0] * s_fft[0];                       /* DC bin, Re[0] */
-for (int k = 1; k < N_FFT / 2; k++) {
-    float re = s_fft[2 * k];
-    float im = s_fft[2 * k + 1];
-    s_power[k] = re * re + im * im;
-}
-s_power[N_FFT / 2] = s_fft[N_FFT] * s_fft[N_FFT];       /* Nyquist bin, Re[N/2] */
-```
-
-### 3. Strict "No Heap Allocation in Tasks" Rule
-
-All audio buffers, MFCC matrices, and inference arrays are **static**:
-
-```c
-static int16_t s_audio_buf[2][N_SAMPLES];   /* ping-pong audio */
-static float   s_mfcc[N_WIN][N_MFCC];       /* MFCC output */
-static int8_t  s_q_in[N_TOTAL];             /* quantized input */
-static int8_t  s_q_out[2];                  /* quantized output */
-```
-
-Pre-allocating statically guarantees **deterministic memory usage and execution timing**, completely eliminating runtime heap fragmentation on the MCU.
 
 ---
 
-## 📄 File Map
+## Key Algorithms and Implementation Details
 
-| File | Description |
-|------|-------------|
-| **`main.c`** | Application entry point. Initializes MFCC, TFLite, and I2S; manages dual-core tasks, AC RMS gating, quantization, and majority voting. |
-| **`mfcc.c`** | MFCC feature extraction: pre-emphasis (0.97), Hamming windowing, 512-pt ESP-DSP FFT, 40-bin mel filterbank, `10·log10` dB conversion with `mmax-80` floor, and 13-coeff orthonormal DCT-II. |
-| **`mfcc.h`** | Public API for `mfcc_init()` and `mfcc_extract_block()`. |
-| **`inference.cpp`** | C++ bridge to TFLite Micro. Allocates the 200 KB tensor arena (PSRAM-first), registers ops in `MicroMutableOpResolver`, and invokes the model. |
-| **`inference.h`** | Public API for `inference_init()` and `inference_run()`. |
-| **`i2s_capture.c`** | I2S Standard Mode RX driver for INMP441: 16 kHz, 32-bit stereo slot de-interleaving, GPIO 4/5/6, DMA double-buffering. |
-| **`i2s_capture.h`** | Public API for `i2s_capture_init()` and `i2s_capture_read()`. |
-| **`mel_tables.h`** | Precomputed librosa-matching tables: `g_ham[512]`, `g_mel_fb[10280]`, and `g_dct[520]`. |
-| **`model_config.h`** | Audio constants, standardization vectors (`g_mfcc_mu/std`), and TFLite int8 quantization scales. |
-| **`model_data.cc`** | Quantized int8 TFLite model array (`g_model_data[]` ~106 KB). |
-| **`test_vectors.h`** | Pre-computed PCM and MFCC test vectors for the `RP_PARITY_TEST` offline test suite. |
+### 1. Dual-Channel Stereo Ping-Pong Buffers
+To ensure safe, lockless data exchange between Core 0 and Core 1 without memory allocation:
+
+```c
+/* Dimension 1: Ping-Pong (2), Dimension 2: Channel L/R (2), Dimension 3: Samples */
+static int16_t s_audio_buf[2][2][N_SAMPLES]; /* 2 * 2 * 16640 * 2 = 133,120 bytes */
+static volatile int s_wr = 0;
+static volatile int s_rd = 0;
+```
+
+### 2. Time Difference of Arrival (TDOA) Direction Estimation
+Using `dsps_corr_f32`, cross-correlation is averaged across multiple time segments within the active audio window:
+
+```c
+#define TDOA_MAX_LAG        32
+#define TDOA_PAT_LEN        1024
+#define TDOA_SIG_LEN        (TDOA_PAT_LEN + 2 * TDOA_MAX_LAG) /* 1088 */
+#define TDOA_LAG_THRESHOLD  2
+
+/* ESP-DSP Cross-Correlation: Signal (Left Channel), Pattern (Right Channel) */
+esp_err_t err = dsps_corr_f32(s_tdoa_sig, TDOA_SIG_LEN, s_tdoa_pat, TDOA_PAT_LEN, s_tdoa_corr);
+```
+- A peak at `lag > +2` indicates the sound reached Mic 2 (Right) first $\rightarrow$ **DOA_RIGHT**.
+- A peak at `lag < -2` indicates the sound reached Mic 1 (Left) first $\rightarrow$ **DOA_LEFT**.
+- A peak within $[-2, +2]$ indicates approximately equal arrival time $\rightarrow$ **DOA_CENTER**.
+
+### 3. Louder-Channel Selective Inference
+To preserve classification accuracy even when the siren is strongly offset to one side:
+1. True AC RMS is calculated independently for both `buf_l` and `buf_r`.
+2. The channel with higher RMS volume is routed into `mfcc_extract_block()`.
+
+### 4. Deterministic Memory Footprint
+- Model weights (`g_model_data[]` ~108 KB) are mapped to **Flash RoData** (`.flash.rodata`).
+- All internal buffers are statically allocated at link time:
+  - SRAM Utilization: **76.4% (250 KB / 328 KB)**.
+  - Headroom: **$>77\text{ KB}$ internal SRAM free**.
+  - PSRAM: **8 MB Octal PSRAM** hosting the 200 KB TFLite tensor arena.
+
+---
+
+## File Reference
+
+| File | Purpose |
+|---|---|
+| [`main.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/main.c) | System orchestration, FreeRTOS tasks, TDOA direction estimation, AC RMS volume metering, majority voting. |
+| [`i2s_capture.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.c) / [`i2s_capture.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.h) | 16 kHz 32-bit stereo I2S DMA driver, unpacking Left (Mic 1) and Right (Mic 2) PCM samples. |
+| [`mfcc.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.c) / [`mfcc.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.h) | ESP-DSP accelerated MFCC pipeline (0.97 pre-emphasis, Hamming window, 512-pt FFT, 40 Mel filters, DCT-II). |
+| [`inference.cpp`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/inference.cpp) / [`inference.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/inference.h) | C++ bridge for TensorFlow Lite for Microcontrollers, memory allocation, and interpreter invocation. |
+| [`model_data.cc`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/model_data.cc) | Flash-mapped INT8 quantized TFLite model byte array. |
+| [`model_config.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/model_config.h) | Audio constants, per-coefficient standardization parameters, and quantization affine scales. |
+| [`mel_tables.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mel_tables.h) | Precomputed Librosa-matching Hamming window, Mel filterbank, and DCT matrix tables. |
+| [`test_vectors.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/test_vectors.h) | Pre-computed siren and noise test vectors for automated on-device mathematical parity testing. |
