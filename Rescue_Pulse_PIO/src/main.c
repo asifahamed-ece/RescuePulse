@@ -14,6 +14,7 @@
 #include "model_config.h"
 #include "inference.h"
 #include "i2s_capture.h"
+#include "display_st7735s.h"
 
 #ifdef RP_PARITY_TEST
 #include "test_vectors.h"
@@ -264,6 +265,8 @@ static void inference_task(void *arg)
         if (max_rms < RMS_THRESHOLD) {
             vote_siren = 0;
             vote_count = 0;
+            display_st7735s_show_idle(rms_l, rms_r);
+            vTaskDelay(pdMS_TO_TICKS(1)); /* Yield to feed WDT */
             continue;
         }
 
@@ -280,6 +283,7 @@ static void inference_task(void *arg)
         mfcc_extract_block(s_audio_buf[buf_idx][active_ch], s_mfcc);
         int64_t t1 = esp_timer_get_time();
         float mfcc_ms = (float)(t1 - t0) / 1000.0f;
+        (void)mfcc_ms;
 
         /* ---- 5. Quantize ---- */
         quantize_mfcc(s_mfcc, s_q_in);
@@ -307,12 +311,22 @@ static void inference_task(void *arg)
             if (siren) {
                 ESP_LOGW(TAG, "🚨 SIREN DETECTED [%s] (Conf: %.2f) [%d/%d] [RMS L:%.3f R:%.3f, Lag: %d, MaxPCM: %d]",
                          doa_to_string(doa_dir), confidence, vote_siren, VOTE_WINDOWS, rms_l, rms_r, lag, active_max_pcm);
+                display_st7735s_show_siren((ui_direction_t)doa_dir, confidence, lag, rms_l, rms_r);
+                vTaskDelay(pdMS_TO_TICKS(1)); /* Yield to feed WDT */
             } else {
                 ESP_LOGI(TAG, "🔇 Background Noise [%d/%d] (Conf: %.2f) [RMS L:%.3f R:%.3f]",
                          vote_siren, VOTE_WINDOWS, confidence, rms_l, rms_r);
+                display_st7735s_show_noise(confidence, rms_l, rms_r);
+                vTaskDelay(pdMS_TO_TICKS(1)); /* Yield to feed WDT */
             }
             vote_siren = 0;
             vote_count = 0;
+        } else {
+            /* Intermediate frame update */
+            if (pred == 0) {
+                display_st7735s_show_noise(confidence, rms_l, rms_r);
+                vTaskDelay(pdMS_TO_TICKS(1)); /* Yield to feed WDT */
+            }
         }
     }
 }
@@ -322,8 +336,15 @@ static void inference_task(void *arg)
 /* ------------------------------------------------------------------ */
 void app_main(void)
 {
-    ESP_LOGI(TAG, "BUILD MARKER PHASE9 (Dual-Mic Stereo I2S + TDOA Direction of Arrival)");
+    ESP_LOGI(TAG, "BUILD MARKER PHASE11 (ST7735S SPI TFT + Dual-Mic TDOA DoA Siren Detection)");
     
+    /* Initialize Display */
+    if (display_st7735s_init() != ESP_OK) {
+        ESP_LOGW(TAG, "ST7735S Display Init Failed or Skipped");
+    } else {
+        ESP_LOGI(TAG, "ST7735S Display Init: OK");
+    }
+
     mfcc_init();
     ESP_LOGI(TAG, "MFCC Init: OK");
 
