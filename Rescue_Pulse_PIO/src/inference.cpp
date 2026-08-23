@@ -14,8 +14,8 @@
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
-extern unsigned char  g_model_data[];
-extern unsigned int   g_model_data_len;
+extern const unsigned char  g_model_data[];
+extern const unsigned int   g_model_data_len;
 
 static const char *TAG = "tflite";
 
