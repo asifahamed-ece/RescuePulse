@@ -92,9 +92,9 @@ I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R
 | **SD / DOUT** | SD | SD | **GPIO 17** | Serial Data (shared single DIN) |
 | **L/R** | **Tied to GND** | **Tied to 3.3V** | — | Hardware slot selection |
 
-#### 2. ST7789 SPI TFT Display (240x240 RGB565)
+#### 2. ST7735S SPI TFT Display (128x128 RGB)
 
-| ST7789 Pin | ESP32-S3 GPIO | Function |
+| ST7735S Pin | ESP32-S3 GPIO | Function |
 |---|---|---|
 | **SCL / SCLK** | **GPIO 12** | SPI Clock |
 | **SDA / MOSI** | **GPIO 11** | SPI Master Out / Data |
