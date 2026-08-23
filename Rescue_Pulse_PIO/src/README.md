@@ -115,6 +115,7 @@ To preserve classification accuracy even when the siren is strongly offset to on
 | File | Purpose |
 |---|---|
 | [`main.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/main.c) | System orchestration, FreeRTOS tasks, TDOA direction estimation, AC RMS volume metering, majority voting. |
+| [`display_st7789.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/display_st7789.c) / [`display_st7789.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/display_st7789.h) | ST7789 SPI TFT display driver (240x240 RGB565) rendering live directional alerts, noise classification, and RMS bars. |
 | [`i2s_capture.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.c) / [`i2s_capture.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.h) | 16 kHz 32-bit stereo I2S DMA driver, unpacking Left (Mic 1) and Right (Mic 2) PCM samples. |
 | [`mfcc.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.c) / [`mfcc.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.h) | ESP-DSP accelerated MFCC pipeline (0.97 pre-emphasis, Hamming window, 512-pt FFT, 40 Mel filters, DCT-II). |
 | [`inference.cpp`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/inference.cpp) / [`inference.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/inference.h) | C++ bridge for TensorFlow Lite for Microcontrollers, memory allocation, and interpreter invocation. |
