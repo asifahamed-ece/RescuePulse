@@ -79,9 +79,9 @@ I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R
 | **Microphone 2** | INMP441 I2S MEMS Microphone | Right acoustic sensor |
 | **Power** | 3.3V Regulated Power Rail | Low-noise analog/digital supply |
 
-### Dual Microphone Wiring Schematic
+### Hardware Wiring Maps
 
-Both INMP441 modules share the same I2S clock and data bus. The hardware channel assignment is configured via the `L/R` pin:
+#### 1. Dual INMP441 Microphones (I2S Audio Bus)
 
 | Signal | Mic 1 (Left Channel) | Mic 2 (Right Channel) | ESP32-S3 Pin | Function |
 |---|---|---|---|---|
@@ -91,6 +91,19 @@ Both INMP441 modules share the same I2S clock and data bus. The hardware channel
 | **WS / LRCLK** | WS | WS | **GPIO 16** | Word Select (shared) |
 | **SD / DOUT** | SD | SD | **GPIO 17** | Serial Data (shared single DIN) |
 | **L/R** | **Tied to GND** | **Tied to 3.3V** | — | Hardware slot selection |
+
+#### 2. ST7789 SPI TFT Display (240x240 RGB565)
+
+| ST7789 Pin | ESP32-S3 GPIO | Function |
+|---|---|---|
+| **SCL / SCLK** | **GPIO 12** | SPI Clock |
+| **SDA / MOSI** | **GPIO 11** | SPI Master Out / Data |
+| **DC / RS** | **GPIO 10** | Data / Command Select |
+| **CS** | **GPIO 9** | Chip Select (or GND if none) |
+| **RST / RES** | **GPIO 8** | Hardware Reset |
+| **BLK / LED** | **GPIO 7** | Backlight (3.3V) |
+| **VCC** | **3.3V** | Power supply |
+| **GND** | **GND** | Ground |
 
 *How shared SD works:* During standard Philips I2S transmission, Mic 1 drives the data bus during the Left slot (WS LOW) and tri-states its output driver during the Right slot (WS HIGH), while Mic 2 drives during the Right slot and tri-states during the Left slot.
 
