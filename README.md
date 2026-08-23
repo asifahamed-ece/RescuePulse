@@ -68,6 +68,14 @@ I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R
 
 ---
 
+### Model Training Outcomes
+
+<img src="models/confusion_matrix.png" height="400" width="400" />
+
+<img src="models/training_curves.png" height="400" width="1000" />
+
+---
+
 ## Hardware Configuration
 
 ### Bill of Materials
