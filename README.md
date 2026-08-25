@@ -66,12 +66,14 @@ W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:
 I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
 ```
 
+![Live System Output](assets/Traffic_Demo.jpg)
+*<small>Traffic noise demonstration showing real-time siren detection and direction of arrival. Dark rectangles indicate detected siren sources from left, right, and center.</small>*
+
 ### System Visual Demonstrations
 
-<img src="assets/Traffic_Demo.jpg" alt="Traffic Noise Demo..." width="300"/>
-
 #### Boot Display
-<img src="assets/RescuePulse-Display-Boot.jpg" alt="Initial Boot..." width="300"/>
+![RescuePulse Boot Display](assets/RescuePulse-Display-Boot.jpg)
+*<small>System boot screen showing startup status and initialization of the dual-microphone audio pipeline.</small>*
 
 #### Direction of Arrival Visualization
 <div align="center">
@@ -79,7 +81,14 @@ I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R
   <img src="assets/Siren-Right.jpg" alt="Siren Detection from Right" width="300"/>
   <img src="assets/Centre-Siren.jpg" alt="Siren Detection from Center" width="300"/>
 </div>
-*<small>Real-time visualizations of siren detection from different microphone positions: Left, Right, and Center.</small>
+*<small>Real-time visualizations of siren detection from different microphone positions: Left, Right, and Center.</small>*
+
+#### Model Prediction Tests
+<div align="center">
+  <img src="assets/ModelPredictionTest.png" alt="Model Prediction Test" width="400"/>
+  <img src="assets/Siren_ModelPredictionTest.png" alt="Siren Model Prediction" width="400"/>
+</div>
+*<small>Model prediction visualizations showing classification confidence and activation patterns for noise and siren detection.</small>*
 
 ---
 
