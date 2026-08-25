@@ -82,13 +82,6 @@ I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R
 </div>
 *<small>Real-time visualizations of siren detection from different microphone positions: Left, Right, and Center.</small>*
 
-#### Model Prediction Tests
-<div align="center">
-  <img src="assets/ModelPredictionTest.png" alt="Model Prediction Test" width="400"/>
-  <img src="assets/Siren_ModelPredictionTest.png" alt="Siren Model Prediction" width="400"/>
-</div>
-*<small>Model prediction visualizations showing classification confidence and activation patterns for noise and siren detection.</small>*
-
 ---
 
 ### Model Training Outcomes
