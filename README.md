@@ -69,10 +69,13 @@ I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R
 ### System Visual Demonstrations
 
 <div align="center">
-  <img src="assets/Traffic_Demo.jpg" alt="Traffic Noise Demo" width="400"/>
   <img src="assets/RescuePulse-Display-Boot.jpg" alt="Boot Display" width="400"/>
+  <img src="assets/Traffic_Demo.jpg" alt="Traffic Noise Demo" width="400"/>
 </div>
-*<small>Left: Traffic noise demonstration showing real-time siren detection and direction of arrival. Right: System boot screen showing startup status and initialization.</small>*
+*<small> Left: System boot screen showing startup status and initialization.  
+  
+Right: Traffic noise demonstration showing real-time siren detection and direction of arrival.</small>*
+</div>
 
 #### Direction of Arrival Visualization
 <div align="center">
