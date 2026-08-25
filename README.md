@@ -66,6 +66,21 @@ W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:
 I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
 ```
 
+### System Visual Demonstrations
+
+<img src="assets/Traffic_Demo.jpg" alt="Traffic Noise Demo..." width="300"/>
+
+#### Boot Display
+<img src="assets/RescuePulse-Display-Boot.jpg" alt="Initial Boot..." width="300"/>
+
+#### Direction of Arrival Visualization
+<div align="center">
+  <img src="assets/Siren-Left.jpg" alt="Siren Detection from Left" width="300"/>
+  <img src="assets/Siren-Right.jpg" alt="Siren Detection from Right" width="300"/>
+  <img src="assets/Centre-Siren.jpg" alt="Siren Detection from Center" width="300"/>
+</div>
+*<small>Real-time visualizations of siren detection from different microphone positions: Left, Right, and Center.</small>
+
 ---
 
 ### Model Training Outcomes
@@ -199,6 +214,33 @@ RescuePulse/
 │   ├── quantize_model.py        # Post-training int8 TFLite quantization
 │   └── gen_mfcc_test_vectors.py # C header generation for mathematical parity tests
 └── assets/                      # Schematics, logs, and documentation media
+```
+
+### Assets Gallery
+
+The `assets/` directory contains comprehensive visual documentation of the RescuePulse system in action:
+
+- **Boot Display**: System initialization and startup sequence
+- **Direction of Arrival**: Real-time siren detection from Left, Right, and Center positions
+- **Live System Output**: Traffic noise demonstration showing multi-source detection
+- **Model Prediction Tests**: Classification visualizations and activation patterns
+
+These images provide concrete visual evidence of the system's real-time edge AI capabilities and user-facing interface.
+
+## Live Hardware Execution Logs
+
+Below is a serial capture from an ESP32-S3 running live dual-microphone inference in real time:
+
+```text
+I (1410146) rescuepulse: 🔇 Background Noise [0/5] (Conf: 0.91) [RMS L:0.028 R:0.031]
+W (1415336) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.99) [3/5] [RMS L:0.087 R:0.043, Lag: -4, MaxPCM: 9100]
+W (1420546) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.88) [4/5] [RMS L:0.082 R:0.047, Lag: -4, MaxPCM: 8092]
+W (1425746) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 1.00) [5/5] [RMS L:0.091 R:0.165, Lag: 5, MaxPCM: 15097]
+W (1430936) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [5/5] [RMS L:0.066 R:0.090, Lag: 5, MaxPCM: 9646]
+W (1436146) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.97) [5/5] [RMS L:0.083 R:0.060, Lag: -1, MaxPCM: 11096]
+W (1441346) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.98) [5/5] [RMS L:0.094 R:0.064, Lag: -1, MaxPCM: 10679]
+W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:0.041 R:0.042, Lag: 0, MaxPCM: 6456]
+I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
 ```
 
 ---
