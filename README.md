@@ -1,4 +1,12 @@
-# RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA) featuring Dynamic Traffic Redirection
+<div align="center">
+
+# 🚨 RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA) featuring Dynamic Traffic Redirection
+
+### 🎯 Real-Time Acoustic AI • 🧠 Edge Computing • 🚦 Smart Traffic Control
+
+</div>
+
+---
 
 RescuePulse is a high-performance, real-time edge computing system deployed on the ESP32-S3 microcontroller. It utilizes an on-device quantized Deep Neural Network (DNN) and a dual-microphone MEMS array to accurately detect emergency vehicle sirens (ambulances, fire engines, police) and determine their directional origin (LEFT, RIGHT, or CENTER) before the vehicle is visually in range.
 
@@ -61,6 +69,16 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
   │                                                                                        │
   └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 📊 System Pipeline Visualization
+
+<div align="center">
+  <img src="assets/gifs/pipeline.gif" alt="RescuePulse System Pipeline" width="800"/>
+  <br>
+  <em>Complete system execution flow from audio capture through acoustic detection to traffic control</em>
+</div>
 
 ---
 
