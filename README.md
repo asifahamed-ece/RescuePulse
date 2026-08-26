@@ -27,7 +27,7 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
   │                                                                                        │
   │  Mic 1 (Left)   ──┐                                                                    │
   │  (L/R -> GND)     │  I2S DMA (Core 0)      Ping-Pong Buffer       MFCC Extraction      │
-  │                   ├────────────────────► [2][2][16640] Int16 ──► (512-pt FFT, 40 Mel, │
+  │                   ├────────────────────► [2][2][16640] Int16 ──► (512-pt FFT, 40 Mel,  │
   │  Mic 2 (Right)  ──┘  16 kHz Stereo         (133 KB static)        13 DCT Coeffs)       │
   │  (L/R -> 3.3V)                                                          │              │
   │                                                                         ▼              │
@@ -50,13 +50,13 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
   │                            (Traffic Light State Machine)                               │
   │                                                                                        │
   │                          Lane GPIOs (1-6, 13-14, 21)                                   │
-  │                          ┌─ LEFT:   RED(1) YELLOW(2) GREEN(3)                         │
-  │                          ├─ CENTER: RED(4) YELLOW(5) GREEN(6)                         │
-  │                          └─ RIGHT:  RED(13) YELLOW(14) GREEN(21)                      │
+  │                          ┌─ LEFT:   RED(1) YELLOW(2) GREEN(3)                          │
+  │                          ├─ CENTER: RED(4) YELLOW(5) GREEN(6)                          │
+  │                          └─ RIGHT:  RED(13) YELLOW(14) GREEN(21)                       │
   │                                                                                        │
   │                          Dynamic Mode Selection:                                       │
-  │                          • MODE_NORMAL:    Regular green→yellow→red cycling           │
-  │                          • MODE_CLEARANCE: 2s all-red safety transition               │
+  │                          • MODE_NORMAL:    Regular green→yellow→red cycling            │
+  │                          • MODE_CLEARANCE: 2s all-red safety transition                │
   │                          • MODE_EMERGENCY: Priority green on siren lane                │
   │                                                                                        │
   └────────────────────────────────────────────────────────────────────────────────────────┘
