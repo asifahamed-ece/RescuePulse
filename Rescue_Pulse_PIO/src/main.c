@@ -15,6 +15,7 @@
 #include "inference.h"
 #include "i2s_capture.h"
 #include "display_st7735s.h"
+#include "traffic_ctrl.h"
 
 #ifdef RP_PARITY_TEST
 #include "test_vectors.h"
@@ -51,6 +52,12 @@ typedef enum {
     DOA_LEFT,
     DOA_RIGHT
 } doa_direction_t;
+
+typedef enum {
+    LANE_CENTER = 0,
+    LANE_LEFT,
+    LANE_RIGHT
+} lane_t;
 
 static const char *doa_to_string(doa_direction_t dir)
 {
@@ -312,11 +319,29 @@ static void inference_task(void *arg)
                 ESP_LOGW(TAG, "🚨 SIREN DETECTED [%s] (Conf: %.2f) [%d/%d] [RMS L:%.3f R:%.3f, Lag: %d, MaxPCM: %d]",
                          doa_to_string(doa_dir), confidence, vote_siren, VOTE_WINDOWS, rms_l, rms_r, lag, active_max_pcm);
                 display_st7735s_show_siren((ui_direction_t)doa_dir, confidence, lag, rms_l, rms_r);
+
+                /* Send detection to traffic controller */
+                detection_msg_t msg = {
+                    .siren_active = true,
+                    .direction = (lane_t)doa_dir,
+                    .confidence = confidence
+                };
+                xQueueSend(g_traffic_queue, &msg, 0);
+
                 vTaskDelay(pdMS_TO_TICKS(1)); /* Yield to feed WDT */
             } else {
                 ESP_LOGI(TAG, "🔇 Background Noise [%d/%d] (Conf: %.2f) [RMS L:%.3f R:%.3f]",
                          vote_siren, VOTE_WINDOWS, confidence, rms_l, rms_r);
                 display_st7735s_show_noise(confidence, rms_l, rms_r);
+
+                /* Send "no siren" to traffic controller */
+                detection_msg_t msg = {
+                    .siren_active = false,
+                    .direction = (lane_t)doa_dir,
+                    .confidence = confidence
+                };
+                xQueueSend(g_traffic_queue, &msg, 0);
+
                 vTaskDelay(pdMS_TO_TICKS(1)); /* Yield to feed WDT */
             }
             vote_siren = 0;
@@ -365,6 +390,12 @@ void app_main(void)
         ESP_LOGE(TAG, "Semaphore create failed");
         return;
     }
+
+    if (traffic_ctrl_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Traffic Controller Init: FAIL");
+        return;
+    }
+    ESP_LOGI(TAG, "Traffic Controller Init: OK");
 
 #ifdef RP_PARITY_TEST
     run_parity_test();
