@@ -44,6 +44,20 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
   │                                                 │                                      │
   │                                                 ▼                                      │
   │                                   🚨 SIREN DETECTED [LEFT/RIGHT]                       │
+  │                                                 │                                      │
+  │                                                 ▼                                      │
+  │                         🚦 PHASE 2: Emergency Vehicle Priority Control                 │
+  │                            (Traffic Light State Machine)                               │
+  │                                                                                        │
+  │                          Lane GPIOs (1-6, 13-14, 21)                                   │
+  │                          ┌─ LEFT:   RED(1) YELLOW(2) GREEN(3)                         │
+  │                          ├─ CENTER: RED(4) YELLOW(5) GREEN(6)                         │
+  │                          └─ RIGHT:  RED(13) YELLOW(14) GREEN(21)                      │
+  │                                                                                        │
+  │                          Dynamic Mode Selection:                                       │
+  │                          • MODE_NORMAL:    Regular green→yellow→red cycling           │
+  │                          • MODE_CLEARANCE: 2s all-red safety transition               │
+  │                          • MODE_EMERGENCY: Priority green on siren lane                │
   │                                                                                        │
   └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -246,6 +260,111 @@ W (1441346) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.98) [5/5] [RMS L:
 W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:0.041 R:0.042, Lag: 0, MaxPCM: 6456]
 I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
 ```
+
+---
+
+## Phase 2: Emergency Vehicle Priority Traffic Light Control
+
+### Overview
+
+Phase 2 extends RescuePulse with intelligent traffic light management that responds dynamically to incoming emergency vehicles. When a siren is detected by the acoustic system, the traffic controller automatically manages lane states to provide safe priority passage for the emergency vehicle while maintaining intersection safety through proper clearance sequencing.
+
+### Traffic Control Architecture
+
+**Three Operating Modes:**
+
+1. **MODE_NORMAL** — Standard traffic cycling
+   - Lane sequence: LEFT → CENTER → RIGHT → LEFT (repeating)
+   - Each lane cycles: GREEN (8s) → YELLOW (2s) → RED
+   - All lanes cycle through automatically with no external input
+
+2. **MODE_CLEARANCE** — Safety transition phase
+   - All traffic lights set to RED for 2 seconds
+   - Ensures intersection is cleared before emergency vehicle priority begins
+   - Automatically activated when transitioning from NORMAL to EMERGENCY
+   - Prevents collisions during mode switches
+
+3. **MODE_EMERGENCY** — Emergency vehicle priority
+   - Siren-detected lane receives continuous GREEN
+   - All other lanes held at RED
+   - Extends green indefinitely while siren continues
+   - Automatically exits after 10 seconds without siren detection
+
+### Detection Message Flow
+
+The inference task (Core 1) continuously sends `detection_msg_t` messages via FreeRTOS queue:
+
+```c
+typedef struct {
+    bool  siren_active;   /* true if siren detected */
+    lane_t direction;     /* LANE_CENTER, LANE_LEFT, or LANE_RIGHT */
+    float confidence;     /* Classification confidence (0.0 - 1.0) */
+} detection_msg_t;
+```
+
+The traffic controller processes these messages to:
+- Update emergency lane information
+- Refresh the "last siren detected" timestamp
+- Optimize state transitions to minimize clearance delays when the emergency vehicle is already on a GREEN lane
+
+### GPIO Pin Mapping
+
+Nine GPIO pins control the 3-lane traffic light array (RGB LEDs):
+
+| Lane | Red | Yellow | Green |
+|------|-----|--------|-------|
+| **LEFT** | GPIO 1 | GPIO 2 | GPIO 3 |
+| **CENTER** | GPIO 4 | GPIO 5 | GPIO 6 |
+| **RIGHT** | GPIO 13 | GPIO 14 | GPIO 21 |
+
+All pins are configured as digital outputs with no pull resistors. Drive strength is suitable for direct LED control with current-limiting resistors on the hardware side.
+
+### State Machine Transitions
+
+```
+┌──────────────┐
+│ MODE_NORMAL  │◄─────────────────────────────┐
+│ (Cycling)    │                              │
+└──────┬───────┘                              │
+       │                                      │
+       │ Siren detected on different lane     │ No siren for
+       │ or during yellow phase               │ 10+ seconds
+       │                                      │
+       ▼                                      │
+┌──────────────┐                              │
+│MODE_CLEARANCE│                              │
+│ (2s all RED) │                              │
+└──────┬───────┘                              │
+       │                                      │
+       │ After 2 seconds                      │
+       │                                      │
+       ▼                                      │
+┌──────────────────┐                          │
+│ MODE_EMERGENCY   │──────────────────────────┘
+│ (Siren lane      │
+│  GREEN, all else │
+│  RED)            │
+└──────────────────┘
+```
+
+### Optimization Features
+
+**Smart Clearance Avoidance:** If a siren is detected on a lane that is already GREEN in NORMAL mode and not in YELLOW phase, the controller directly transitions to EMERGENCY mode without the clearance delay, reducing emergency vehicle wait time.
+
+**Message Queue Processing:** The traffic controller checks for detection messages every 100 ms, allowing responsive updates while maintaining predictable state transitions for non-emergency traffic.
+
+**Timeout Safety:** Emergency mode automatically expires if 10 seconds pass without any siren detection, ensuring the system returns to normal operation even if detection messages stop unexpectedly.
+
+### Integration with Phase 1 (Acoustic Detection)
+
+The traffic control system is tightly integrated with the siren detection pipeline:
+
+1. **inference_task** (Core 1) performs acoustic analysis and generates detection messages
+2. Detection messages are sent via `g_traffic_queue` (FreeRTOS queue)
+3. **traffic_ctrl_task** (also Core 1, lower priority) receives and processes messages
+4. GPIO state is updated in real-time based on the current mode and lane
+
+Both tasks run on Core 1 with traffic detection at priority 4 and traffic control at priority 3, ensuring the higher-priority inference task always completes siren detection before traffic state is updated.
 
 ---
 

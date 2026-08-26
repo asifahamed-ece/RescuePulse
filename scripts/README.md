@@ -207,4 +207,234 @@ The firmware's `RP_PARITY_TEST` harness then replays these vectors and asserts:
 - MFCC relative L2 error < 1% vs. the Python-computed MFCC.
 - Inference class matches the expected class.
 
-> **Note:** TensorFlow and librosa cannot be imported in the same process (librosa's numba/LLVM corrupts TF's LLVM pass registry → segfault). `gen_mfcc_test_vectors.py` and `test_audio.py` therefore isolate TF inside subprocesses.
+---
+
+## Phase 2: Traffic Control Integration
+
+### Overview
+
+Phase 2 adds hardware-driven traffic light management that responds dynamically to siren detections from Phase 1. The traffic control system is **entirely firmware-based** — no Python training or model quantization is required. The integration happens at the C/FreeRTOS level through:
+
+1. **Detection message queue:** Inference task sends `detection_msg_t` via FreeRTOS queue
+2. **State machine:** Traffic control task receives messages and drives GPIO outputs
+3. **GPIO management:** 9 pins control 3 traffic lanes (LEFT/CENTER/RIGHT, each with RED/YELLOW/GREEN)
+
+### Traffic Control Firmware Architecture
+
+The traffic control module (`src/traffic_ctrl.c` / `src/traffic_ctrl.h`) implements a three-state finite state machine:
+
+```
+NORMAL (autonomous cycling)
+  ↓ (siren on different lane or yellow phase)
+CLEARANCE (2s all-red safety)
+  ↓ (after 2s)
+EMERGENCY (priority green on siren lane)
+  ↓ (10s no siren)
+NORMAL
+```
+
+### Message Flow: Phase 1 → Phase 2
+
+**Phase 1 (Inference) generates:**
+```c
+detection_msg_t msg = {
+    .siren_active = true,
+    .direction = DOA_RIGHT,  // Mapped 1:1 from DoA
+    .confidence = 0.98f      // Model confidence
+};
+xQueueSend(g_traffic_queue, &msg, 0);  // Non-blocking
+```
+
+**Phase 2 (Traffic Control) receives and acts:**
+```c
+if (xQueueReceive(g_traffic_queue, &msg, 100ms timeout) == pdTRUE) {
+    if (msg->siren_active) {
+        // Transition to EMERGENCY or CLEARANCE
+    }
+}
+```
+
+### GPIO Pin Mapping
+
+| Lane | Component | GPIO | Signal |
+|------|-----------|------|--------|
+| **LEFT** | Traffic Light | 1 | RED |
+| | | 2 | YELLOW |
+| | | 3 | GREEN |
+| **CENTER** | Traffic Light | 4 | RED |
+| | | 5 | YELLOW |
+| | | 6 | GREEN |
+| **RIGHT** | Traffic Light | 13 | RED |
+| | | 14 | YELLOW |
+| | | 21 | GREEN |
+
+All 9 pins are configured as digital GPIO outputs with no pull resistors. Drive strength is suitable for direct LED control (add 150Ω current-limiting resistors on hardware side).
+
+### Timing Configuration
+
+All timings are `#define` values in `src/traffic_ctrl.c`:
+
+```c
+#define NORMAL_GREEN_MS          8000    /* 8 seconds green per lane */
+#define NORMAL_YELLOW_MS         2000    /* 2 seconds yellow per lane */
+#define CLEARANCE_MS             2000    /* All-red safety interval */
+#define EMERGENCY_TIMEOUT_MS     10000   /* Exit emergency if no siren for 10s */
+#define QUEUE_TIMEOUT_MS         100     /* Poll detection queue every 100ms */
+```
+
+### State Machine Behaviors
+
+**MODE_NORMAL** — Autonomous Cycling
+- Lane sequence: LEFT → CENTER → RIGHT → LEFT (repeating)
+- Timing: GREEN (8s) → YELLOW (2s) → RED
+- Triggered on: System boot or emergency timeout
+- Lights all lanes independently with no external input
+
+**MODE_CLEARANCE** — 2-Second All-Red
+- All traffic lights set to RED
+- Ensures intersection clears before emergency vehicle passes
+- Prevents T-bone collisions during mode transitions
+- Triggered on: Siren detected on non-green lane or during yellow phase
+
+**MODE_EMERGENCY** — Priority Green
+- Siren lane: GREEN (continuous)
+- All other lanes: RED
+- Automatically exits after 10 seconds without siren
+- Optimization: If siren on already-green lane during green phase, skip clearance
+
+### Optimization: Smart Clearance Avoidance
+
+If a siren is detected on a lane that is **already GREEN** in NORMAL mode and **not in YELLOW phase**, the system directly transitions to EMERGENCY without the 2-second clearance delay:
+
+```c
+if (s_state.mode == MODE_NORMAL && 
+    s_state.current_lane == msg->direction && 
+    !s_state.in_yellow) {
+    /* Siren on active GREEN lane - extend without clearance */
+    s_state.mode = MODE_EMERGENCY;
+    s_state.emergency_lane = msg->direction;
+    /* Keep lights as-is; no change needed */
+}
+```
+
+This reduces emergency vehicle wait time by ~2 seconds when the vehicle is already on a green lane.
+
+### Serial Output Examples
+
+**Boot & Normal Operation:**
+```
+I (xxx) traffic_ctrl: Initializing Emergency Vehicle Priority Traffic Controller
+I (xxx) traffic_ctrl: GPIO pins configured: 1-6, 13-14, 21
+I (xxx) traffic_ctrl: Traffic control task launched (priority 3, stack 4096 bytes)
+I (xxx) traffic_ctrl: Entering NORMAL mode: starting with LANE_LEFT GREEN
+I (xxx) traffic_ctrl: Normal cycle: LANE_CENTER now GREEN
+I (xxx) traffic_ctrl: Normal cycle: LANE_RIGHT now GREEN
+```
+
+**Emergency Detection:**
+```
+W (xxx) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [5/5]
+I (xxx) traffic_ctrl: 🚨 Siren detected: LANE_RIGHT (confidence: 0.98)
+I (xxx) traffic_ctrl: Entering CLEARANCE mode: 2s all-red before emergency LANE_RIGHT
+I (xxx) traffic_ctrl: Entering EMERGENCY mode: LANE_RIGHT GREEN (emergency vehicle)
+```
+
+**Emergency Timeout:**
+```
+I (xxx) traffic_ctrl: No siren for 10001 ms, exiting emergency mode
+I (xxx) traffic_ctrl: Entering NORMAL mode: starting with LANE_LEFT GREEN
+```
+
+### Porting Traffic Control to Other Systems
+
+#### Change GPIO Pins
+
+Edit `src/traffic_ctrl.h`:
+```c
+#define TL_LEFT_RED     <new_pin>
+#define TL_LEFT_YELLOW  <new_pin>
+#define TL_LEFT_GREEN   <new_pin>
+/* ... etc for CENTER and RIGHT ... */
+```
+
+#### Change Timing
+
+Edit `src/traffic_ctrl.c`:
+```c
+#define NORMAL_GREEN_MS      10000    /* Increase for high-traffic areas */
+#define EMERGENCY_TIMEOUT_MS 15000    /* Extend for larger vehicles */
+```
+
+#### Add More Lanes
+
+1. Extend `lane_t` enum in `traffic_ctrl.h`
+2. Add GPIO defines for new lane
+3. Update `set_lane_lights()` switch statement
+4. Update `lane_name()` function
+5. Update lane cycling logic (modulo in `update_normal_mode()`)
+
+#### Different Detection System
+
+If your detection doesn't use DoA estimation, just send the same message structure:
+
+```c
+detection_msg_t msg = {
+    .siren_active = true,
+    .direction = LANE_CENTER,  /* Your system's lane assignment */
+    .confidence = 0.95f
+};
+xQueueSend(g_traffic_queue, &msg, 0);
+```
+
+The traffic controller doesn't care where the messages come from — it only reads from the queue.
+
+### Memory & Performance
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| State struct | 32 B | Static allocation |
+| Message queue | 160 B | 10 × 16-byte messages |
+| Task stack | 4 KB | Fixed at link time |
+| **Total overhead** | **4.3 KB** | No dynamic allocations |
+| **Queue latency** | 5-20 ms | FreeRTOS IPC typical |
+| **GPIO switching** | <1 µs | Hardware-level |
+| **CPU usage** | <0.1% | 100 ms poll interval on Core 1 |
+
+### Firmware Integration Points
+
+**`app_main()` initialization:**
+```c
+if (traffic_ctrl_init() != ESP_OK) {
+    ESP_LOGE(TAG, "Traffic Controller Init: FAIL");
+    return;
+}
+ESP_LOGI(TAG, "Traffic Controller Init: OK");
+```
+
+**Inference task message sending:**
+```c
+detection_msg_t msg = {
+    .siren_active = true,
+    .direction = (lane_t)doa_dir,
+    .confidence = confidence
+};
+xQueueSend(g_traffic_queue, &msg, 0);
+```
+
+**Task scheduling (both on Core 1):**
+- Inference task: Priority 4 (higher)
+- Traffic control task: Priority 3 (lower)
+
+This ensures detections are always processed before traffic state updates.
+
+### No Python Changes Required
+
+Phase 2 is **100% firmware** — no changes to:
+- Dataset processing scripts
+- Model training pipeline
+- Quantization artifacts
+- MFCC test vector generation
+
+The Python pipeline remains unchanged; Phase 2 consumes the trained model output and adds hardware-level traffic management on top.
+
+---

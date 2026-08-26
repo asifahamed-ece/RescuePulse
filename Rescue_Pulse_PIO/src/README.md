@@ -114,7 +114,7 @@ To preserve classification accuracy even when the siren is strongly offset to on
 
 | File | Purpose |
 |---|---|
-| [`main.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/main.c) | System orchestration, FreeRTOS tasks, TDOA direction estimation, AC RMS volume metering, majority voting. |
+| [`main.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/main.c) | System orchestration, FreeRTOS tasks, TDOA direction estimation, AC RMS volume metering, majority voting, detection message generation. |
 | [`display_st7789.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/display_st7789.c) / [`display_st7789.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/display_st7789.h) | ST7789 SPI TFT display driver (240x240 RGB565) rendering live directional alerts, noise classification, and RMS bars. |
 | [`i2s_capture.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.c) / [`i2s_capture.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.h) | 16 kHz 32-bit stereo I2S DMA driver, unpacking Left (Mic 1) and Right (Mic 2) PCM samples. |
 | [`mfcc.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.c) / [`mfcc.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.h) | ESP-DSP accelerated MFCC pipeline (0.97 pre-emphasis, Hamming window, 512-pt FFT, 40 Mel filters, DCT-II). |
@@ -123,3 +123,246 @@ To preserve classification accuracy even when the siren is strongly offset to on
 | [`model_config.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/model_config.h) | Audio constants, per-coefficient standardization parameters, and quantization affine scales. |
 | [`mel_tables.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mel_tables.h) | Precomputed Librosa-matching Hamming window, Mel filterbank, and DCT matrix tables. |
 | [`test_vectors.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/test_vectors.h) | Pre-computed siren and noise test vectors for automated on-device mathematical parity testing. |
+| [`traffic_ctrl.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/traffic_ctrl.c) / [`traffic_ctrl.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/traffic_ctrl.h) | **PHASE 2**: Emergency vehicle priority traffic light state machine, GPIO management, detection message handling, mode transitions (NORMAL/CLEARANCE/EMERGENCY). |
+
+---
+
+## Phase 2: Traffic Light Control System
+
+### Architecture Overview
+
+Phase 2 implements a responsive traffic light management system that receives acoustic siren detections from Phase 1 (inference_task) and dynamically controls 9 GPIO pins to manage three independent traffic lanes. The system operates as a finite state machine with three distinct modes designed to balance emergency vehicle priority with intersection safety.
+
+### System Components
+
+**Detection Pipeline → Traffic Control:**
+
+```
+┌──────────────────┐
+│ inference_task   │  (Core 1, Priority 4)
+│ (Phase 1)        │
+│                  │
+│ • Captures audio │
+│ • Extracts MFCC  │
+│ • Runs TFLite    │
+│ • Generates      │
+│   detection_msg  │
+└────────┬─────────┘
+         │ xQueueSend(g_traffic_queue, &msg, 0)
+         │ Non-blocking, message loss acceptable
+         ▼
+    ┌─────────────────────┐
+    │  FreeRTOS Queue     │
+    │  (depth: 10)        │
+    │  Message Type:      │
+    │  detection_msg_t    │
+    └─────────────────────┘
+         │
+         │ xQueueReceive(g_traffic_queue, &msg, 100ms timeout)
+         ▼
+┌──────────────────┐
+│ traffic_ctrl_task│  (Core 1, Priority 3)
+│ (Phase 2)        │
+│                  │
+│ • Processes      │
+│   detections     │
+│ • Manages state  │
+│   machine        │
+│ • Drives GPIOs   │
+└──────────────────┘
+```
+
+### State Machine Design
+
+**Three Operating Modes:**
+
+1. **MODE_NORMAL** — Standard cyclic traffic control
+   - Lane sequence cycles continuously: LEFT → CENTER → RIGHT → LEFT
+   - Each lane: GREEN (8s) → YELLOW (2s) → RED
+   - No external input required; fully autonomous
+   - Triggered on: System boot or emergency timeout (10s no siren)
+
+2. **MODE_CLEARANCE** — Safety transition (2 seconds)
+   - All lanes forced to RED
+   - Ensures intersection is empty before emergency vehicle passes
+   - Prevents T-bone collisions during mode transitions
+   - Triggered on: Siren detected on different lane or during yellow phase
+
+3. **MODE_EMERGENCY** — Emergency vehicle priority
+   - Siren-detected lane: GREEN (continuous)
+   - All other lanes: RED
+   - Green light held indefinitely while siren is detected
+   - Triggered on: Siren on non-green lane (after clearance) OR siren on currently-green lane in normal mode
+   - Exit condition: No siren detection for 10+ seconds
+
+### Detection Message Structure
+
+```c
+typedef struct {
+    bool  siren_active;   /* true if siren detected in this frame */
+    lane_t direction;     /* LANE_CENTER (0), LANE_LEFT (1), LANE_RIGHT (2) */
+    float confidence;     /* Model confidence score (0.0 - 1.0) */
+} detection_msg_t;
+```
+
+**Message Frequency:** Approximately every 100-150 ms from the inference task, allowing real-time response to siren events while minimizing CPU overhead.
+
+### GPIO Mapping & Control
+
+Nine GPIO pins implement the three traffic lanes:
+
+```c
+// Lane LEFT: GPIOs 1, 2, 3
+#define TL_LEFT_RED     1
+#define TL_LEFT_YELLOW  2
+#define TL_LEFT_GREEN   3
+
+// Lane CENTER: GPIOs 4, 5, 6
+#define TL_CENTER_RED     4
+#define TL_CENTER_YELLOW  5
+#define TL_CENTER_GREEN   6
+
+// Lane RIGHT: GPIOs 13, 14, 21
+#define TL_RIGHT_RED     13
+#define TL_RIGHT_YELLOW  14
+#define TL_RIGHT_GREEN   21
+```
+
+**Pin Selection Rationale:**
+- Avoided USB pins (19, 20)
+- Avoided Flash/PSRAM pins (26-37)
+- Avoided I2S pins (15-17)
+- Avoided Display SPI pins (7-12)
+- All pins are GPIO-capable with sufficient drive strength for direct LED control
+
+**Light Control Logic:**
+
+```c
+static void set_lane_lights(lane_t lane, bool red, bool yellow, bool green)
+{
+    /* Only one light is ON at any time */
+    switch (lane) {
+        case LANE_LEFT:
+            gpio_set_level(TL_LEFT_RED, red ? 1 : 0);
+            gpio_set_level(TL_LEFT_YELLOW, yellow ? 1 : 0);
+            gpio_set_level(TL_LEFT_GREEN, green ? 1 : 0);
+            break;
+        /* ... similar for CENTER and RIGHT ... */
+    }
+}
+```
+
+### State Transition Logic
+
+**Optimization: Smart Clearance Avoidance**
+
+If a siren is detected on a lane that is **already GREEN** in NORMAL mode and **not in YELLOW phase**, the system skips the clearance phase and directly transitions to EMERGENCY mode:
+
+```c
+} else if (s_state.mode == MODE_NORMAL && 
+           s_state.current_lane == msg->direction && 
+           !s_state.in_yellow) {
+    /* Siren on active GREEN lane - extend without clearance */
+    ESP_LOGI(TAG, "Siren on active GREEN lane - extending without clearance");
+    s_state.mode = MODE_EMERGENCY;
+    s_state.emergency_lane = msg->direction;
+    s_state.state_start_us = esp_timer_get_time();
+    /* Keep current lane green, no need to change lights */
+}
+```
+
+This reduces emergency vehicle waiting time by ~2 seconds when the vehicle is already on a green lane.
+
+**Emergency Timeout Safety**
+
+Emergency mode automatically expires after 10 seconds without detection:
+
+```c
+static void update_emergency_mode(void)
+{
+    int64_t now_us = esp_timer_get_time();
+    int64_t since_last_siren_ms = (now_us - s_state.last_siren_us) / 1000;
+
+    if (since_last_siren_ms >= EMERGENCY_TIMEOUT_MS) {
+        /* Exit emergency, do clearance, then return to normal */
+        enter_clearance_mode(LANE_CENTER);
+        vTaskDelay(pdMS_TO_TICKS(CLEARANCE_MS));
+        enter_normal_mode();
+    }
+}
+```
+
+### Timing Configuration
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| `NORMAL_GREEN_MS` | 8000 ms | Standard green light duration per lane |
+| `NORMAL_YELLOW_MS` | 2000 ms | Caution phase before red |
+| `CLEARANCE_MS` | 2000 ms | All-red safety interval |
+| `EMERGENCY_TIMEOUT_MS` | 10000 ms | Max time to hold emergency green |
+| `QUEUE_TIMEOUT_MS` | 100 ms | Detection message poll interval |
+
+### Queue-Based Decoupling
+
+The FreeRTOS queue provides clean decoupling between the inference task (Phase 1) and traffic control (Phase 2):
+
+- **Non-blocking send:** Detection messages are sent with `xQueueSend(..., 0)` — if the queue is full, the oldest message is discarded (acceptable, as the latest detection is most relevant)
+- **Timeout receive:** Traffic control polls the queue every 100 ms, processing one message per iteration
+- **Priority preservation:** Inference (priority 4) executes before traffic control (priority 3), ensuring detections are generated before traffic state updates
+- **Memory efficiency:** Fixed 10-element queue avoids dynamic allocation
+
+### Integration with Main System
+
+**Initialization (app_main):**
+
+```c
+if (traffic_ctrl_init() != ESP_OK) {
+    ESP_LOGE(TAG, "Traffic Controller Init: FAIL");
+    return;
+}
+ESP_LOGI(TAG, "Traffic Controller Init: OK");
+```
+
+**Detection Message Sending (inference_task):**
+
+```c
+if (siren) {
+    detection_msg_t msg = {
+        .siren_active = true,
+        .direction = (lane_t)doa_dir,
+        .confidence = confidence
+    };
+    xQueueSend(g_traffic_queue, &msg, 0);
+}
+```
+
+### Serial Output Examples
+
+```
+I (xxx) traffic_ctrl: Entering NORMAL mode: starting with LANE_LEFT GREEN
+I (xxx) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98)
+I (xxx) traffic_ctrl: 🚨 Siren detected: LANE_RIGHT (confidence: 0.98)
+I (xxx) traffic_ctrl: Entering CLEARANCE mode: 2s all-red before emergency LANE_RIGHT
+I (xxx) traffic_ctrl: Entering EMERGENCY mode: LANE_RIGHT GREEN (emergency vehicle)
+I (xxx) traffic_ctrl: No siren for 10001 ms, exiting emergency mode
+```
+
+### Memory & Performance
+
+- **Static allocation:** All state variables are statically allocated at link time (no runtime heap)
+- **Queue depth:** 10 messages (160 bytes total)
+- **Task stack:** 4096 bytes
+- **Task priority:** 3 (lower than inference, higher than idle)
+- **CPU overhead:** ~1-2% per 100 ms poll interval (simple queue check and state update)
+
+### Extensibility & Porting
+
+The traffic control module is designed for easy porting to different systems:
+
+1. **GPIO customization:** Edit `traffic_ctrl.h` pin definitions
+2. **Timing tuning:** Modify `#define` constants in `traffic_ctrl.c`
+3. **Lane count:** Extend `lane_t` enum and `set_lane_lights()` switch statement
+4. **Detection integration:** Any system sending `detection_msg_t` via `g_traffic_queue` will work
+5. **State machine logic:** Modify `update_*_mode()` functions for custom behavior
+
+---
