@@ -227,8 +227,20 @@ static void handle_detection_msg(const detection_msg_t *msg)
         ESP_LOGI(TAG, "🚨 Siren detected: LANE_%s (confidence: %.2f)",
                  lane_name(msg->direction), msg->confidence);
 
-        /* If not already in emergency mode for this lane, enter clearance */
-        if (s_state.mode != MODE_EMERGENCY || s_state.emergency_lane != msg->direction) {
+        /* Check current state and optimize transition */
+        if (s_state.mode == MODE_EMERGENCY && s_state.emergency_lane == msg->direction) {
+            /* Already in emergency for this lane - just extend green time */
+            ESP_LOGD(TAG, "Siren on active emergency lane - extending green");
+            s_state.state_start_us = esp_timer_get_time();
+        } else if (s_state.mode == MODE_NORMAL && s_state.current_lane == msg->direction && !s_state.in_yellow) {
+            /* Siren on currently GREEN lane in normal mode - extend instead of clearance */
+            ESP_LOGI(TAG, "Siren on active GREEN lane - extending without clearance");
+            s_state.mode = MODE_EMERGENCY;
+            s_state.emergency_lane = msg->direction;
+            s_state.state_start_us = esp_timer_get_time();
+            /* Keep current lane green, no need to change lights */
+        } else {
+            /* Siren on different lane or yellow phase - do full clearance transition */
             enter_clearance_mode(msg->direction);
         }
     } else {

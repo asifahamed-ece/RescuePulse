@@ -31,10 +31,10 @@ static const char *TAG = "rescuepulse";
 #define N_TOTAL          (N_WIN * N_MFCC)          /* 832 */
 #define N_SAMPLES        16640                     /* (64-1)*256 + 512 */
 #define CHUNK            256                       /* I2S read chunk size */
-#define VOTE_WINDOWS     5                         /* majority-vote window */
-#define VOTE_THRESH      3                         /* >=3 siren -> SIREN DETECTED */
+#define VOTE_WINDOWS     4                         /* majority-vote window (optimized for latency) */
+#define VOTE_THRESH      3                         /* >=3/4 siren votes (75% agreement) -> SIREN DETECTED */
 #define RMS_THRESHOLD    0.02f                     /* Skip inference if quieter than this */
-#define CONF_THRESHOLD   0.70f                     /* Require 70% confidence to count as a siren vote */
+#define CONF_THRESHOLD   0.75f                     /* Require 75% confidence to count as a siren vote (stricter) */
 #define TASK_STACK_INFERENCE 16384
 #define TASK_STACK_CAPTURE   4096
 
@@ -52,12 +52,6 @@ typedef enum {
     DOA_LEFT,
     DOA_RIGHT
 } doa_direction_t;
-
-typedef enum {
-    LANE_CENTER = 0,
-    LANE_LEFT,
-    LANE_RIGHT
-} lane_t;
 
 static const char *doa_to_string(doa_direction_t dir)
 {
