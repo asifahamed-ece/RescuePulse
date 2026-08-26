@@ -14,6 +14,18 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
 
 ---
 
+
+## 📊 System Pipeline Visualization
+
+<div align="center">
+  <img src="assets/gifs/pipeline.gif" alt="RescuePulse System Pipeline" width="800"/>
+  <br>
+  <em>Complete system execution flow from audio capture through acoustic detection to traffic control</em>
+</div>
+
+
+---
+
 ## Key Capabilities and Performance Metrics
 
 - **Real-Time Acoustic Classification:** Identifies emergency sirens against heavy urban noise (traffic, engines, horns, construction, speech).
@@ -69,17 +81,6 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
   │                                                                                        │
   └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## 📊 System Pipeline Visualization
-
-<div align="center">
-  <img src="assets/gifs/pipeline.webp" alt="RescuePulse System Pipeline" width="800"/>
-  <br>
-  <em>Complete system execution flow from audio capture through acoustic detection to traffic control</em>
-</div>
-
 ---
 
 ## Live Hardware Execution Logs
