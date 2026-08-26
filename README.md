@@ -2,7 +2,7 @@
 
 # 🚨 RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA) featuring Dynamic Traffic Redirection
 
-### 🎯 Real-Time Acoustic AI • 🧠 Edge Computing • 🚦 Smart Traffic Control
+### Real-Time Acoustic AI • Edge Computing • Smart Traffic Control
 
 </div>
 
@@ -15,7 +15,7 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
 ---
 
 
-## 📊 System Pipeline Visualization
+## System Pipeline Visualization
 
 <div align="center">
   <img src="assets/gifs/pipeline.gif" alt="RescuePulse System Pipeline" width="800"/>
