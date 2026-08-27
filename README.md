@@ -458,3 +458,66 @@ I (xxx) rescuepulse: Noise Inference: Predicted 0 (Expected 0) - PASS [scores 0.
 ## License
 
 This project is licensed under the Apache 2.0 License.
+
+---
+
+## Prototype: RescuePulse
+
+This repository contains the prototype implementation of the RescuePulse system, featuring real-time emergency vehicle siren detection with Direction of Arrival (DoA) estimation and intelligent traffic light control. The prototype demonstrates the complete edge AI pipeline from acoustic sensing through neural network inference to dynamic traffic management.
+
+### Prototype Highlights
+
+- **Complete Edge Deployment:** Fully self-contained system operating on ESP32-S3 microcontroller
+- **Real-Time Processing:** Sub-15ms latency for siren detection and DoA estimation
+- **Dual-Microphone Array:** Hardware-synchronized I2S capture for accurate TDOA calculation
+- **INT8 Quantized Model:** 108KB TensorFlow Lite model with no accuracy loss vs FP32 baseline
+- **Dynamic Traffic Control:** Three-state traffic light system with emergency vehicle prioritization
+- **Zero Cloud Dependency:** All processing occurs locally on-device
+
+### Prototype Components
+
+1. **Acoustic Sensing Phase** (Phase 1)
+   - Dual INMP441 MEMS microphones for stereo audio capture
+   - ESP-DSP accelerated MFCC feature extraction
+   - TDOA-based Direction of Arrival estimation
+   - INT8 quantized 1D CNN for siren vs noise classification
+
+2. **Traffic Control Phase** (Phase 2)
+   - Three-state traffic light state machine (NORMAL → CLEARANCE → EMERGENCY)
+   - GPIO-controlled RGB LED traffic lights (9 pins total)
+   - Smart clearance avoidance to minimize emergency vehicle wait time
+   - FreeRTOS-based message passing between detection and control tasks
+
+3. **System Integration**
+   - Dual-core FreeRTOS architecture (Core 0: I2S capture, Core 1: processing & control)
+   - Static memory allocation with zero dynamic malloc in task loops
+   - Ping-pong buffers for continuous audio capture
+   - External PSRAM for tensor arena storage
+
+### Getting Started with the Prototype
+
+To build and deploy the RescuePulse prototype:
+
+```bash
+# Navigate to the firmware workspace
+cd Rescue_Pulse_PIO
+
+# Clean and compile firmware
+pio run -t clean && pio run
+
+# Flash to the connected ESP32-S3
+pio run -t upload
+
+# Open the serial monitor at 115200 baud
+pio device monitor -b 115200
+```
+
+The prototype outputs real-time detection logs showing siren detection events with direction (LEFT/RIGHT/CENTER) and confidence scores, demonstrating the complete acoustic-to-control pipeline.
+
+### Validation Results
+
+The prototype has been validated with:
+- Mathematical parity testing showing <1% L2 error vs Python Librosa reference
+- Live hardware execution demonstrating reliable siren detection in noisy environments
+- Traffic light control responding correctly to detected siren directions
+- End-to-end latency measurements confirming real-time performance
