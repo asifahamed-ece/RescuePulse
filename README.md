@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🚨 RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA) featuring Dynamic Traffic Redirection
+# RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA)
 
-### Real-Time Acoustic AI • Edge Computing • Smart Traffic Control
+### Real-Time Acoustic AI • Edge Computing • Smart Traffic Routing
 
 </div>
 
@@ -30,12 +30,12 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
 
 - **Real-Time Acoustic Classification:** Identifies emergency sirens against heavy urban noise (traffic, engines, horns, construction, speech).
 - **Direction of Arrival (DoA) Estimation:** Uses dual-channel I2S capture and ESP-DSP cross-correlation (`dsps_corr_f32`) to localize siren source direction (Left / Right / Center) based on inter-microphone arrival time delay.
-- **Strict Mathematical Parity:** C-based MFCC feature extraction achieves $<1\%$ L2 relative error compared to 64-bit Python Librosa references.
+- **Strict Mathematical Parity:** C-based MFCC feature extraction achieves <1% L2 relative error compared to 64-bit Python Librosa references.
 - **Full INT8 Quantization:** 108 KB quantized TensorFlow Lite for Microcontrollers model running without accuracy loss compared to the FP32 baseline.
 - **Dual-Core FreeRTOS Pipeline:** Core 0 is dedicated to lossless stereo I2S DMA capture; Core 1 executes feature extraction, TDOA correlation, and TFLite inference.
 - **Deterministic Memory Architecture:** Zero dynamic allocations (`malloc`) inside FreeRTOS task execution loops; uses static ping-pong buffers and Flash-mapped model data.
 - **Noise and Silence Gating:** Dynamic AC RMS thresholding prevents false triggers during quiet or ambient background intervals.
-- **Debounced Majority Voting:** 5-window rolling majority vote with high confidence gating ($\ge 70\%$) eliminates transient false positives.
+- **Debounced Majority Voting:** 5-window rolling majority vote with high confidence gating (>= 75%) eliminates transient false positives.
 
 ---
 
