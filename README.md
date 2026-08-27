@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🚨 RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA) featuring Dynamic Traffic Redirection
+# RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA)
 
-### Real-Time Acoustic AI • Edge Computing • Smart Traffic Control
+### Real-Time Acoustic AI • Edge Computing • Smart Traffic Routing
 
 </div>
 
