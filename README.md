@@ -279,35 +279,6 @@ W (1441346) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.98) [5/5] [RMS L:
 W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:0.041 R:0.042, Lag: 0, MaxPCM: 6456]
 I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
 ```
-
----
-
-## Execution Flow Visualizations
-
-### Phase 1: Acoustic Siren Detection
-
-The system continuously captures stereo audio, extracts MFCC features, and runs neural network inference to detect emergency sirens and estimate direction of arrival:
-
-![Phase 1 Acoustic Detection Flow](assets/gifs/phase1-acoustic-detection-flow.gif)
-
-*Phase 1 pipeline showing audio capture → MFCC extraction → quantization → inference → DoA estimation, all completing in ~1.0-1.6 seconds per detection cycle.*
-
-### Phase 2: Emergency Traffic Control
-
-When a siren is detected, the traffic control system transitions through three states to safely provide priority passage for the emergency vehicle:
-
-![Phase 2 Traffic Control Flow](assets/gifs/phase2-traffic-control-flow.gif)
-
-*Phase 2 state machine showing NORMAL (autonomous cycling) → CLEARANCE (2s all-red) → EMERGENCY (priority green) transitions with traffic lane visualization.*
-
-### End-to-End System Flow
-
-Complete system visualization showing both phases working together across dual cores:
-
-![End-to-End System Flow](assets/gifs/end-to-end-system-flow.gif)
-
-*End-to-end flow from microphone input through acoustic detection and traffic control to LED output, with Core 0/Core 1 task distribution.*
-
 ---
 
 ## Phase 2: Emergency Vehicle Priority Traffic Light Control
