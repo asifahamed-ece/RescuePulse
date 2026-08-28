@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RescuePulse Dashboard</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>RescuePulse Emergency Siren Detection</h1>
+            <div id="status" class="status idle">Listening...</div>
+        </header>
+
+        <main>
+            <section class="detection-info">
+                <h2>Detection Information</h2>
+                <div class="info-item">
+                    <label>Direction:</label>
+                    <span id="direction">-</span>
+                </div>
+                <div class="info-item">
+                    <label>Confidence:</label>
+                    <span id="confidence">0%</span>
+                </div>
+                <div class="info-item">
+                    <label>Timestamp:</label>
+                    <span id="timestamp">-</span>
+                </div>
+            </section>
+
+            <section class="audio-levels">
+                <h2>Audio Levels</h2>
+                <div class="level-item">
+                    <label>Left Mic RMS:</label>
+                    <div class="level-bar">
+                        <div id="left-level" class="level-fill"></div>
+                    </div>
+                    <span id="left-value">0.000</span>
+                </div>
+                <div class="level-item">
+                    <label>Right Mic RMS:</label>
+                    <div class="level-bar">
+                        <div id="right-level" class="level-fill"></div>
+                    </div>
+                    <span id="right-value">0.000</span>
+                </div>
+            </section>
+
+            <section class="spectrum">
+                <h2>Frequency Spectrum</h2>
+                <canvas id="spectrumCanvas" width="400" height="100"></canvas>
+            </section>
+        </main>
+
+        <footer>
+            <div id="connectionStatus" class="connection disconnected">Disconnected</div>
+            <div id="packetCount">Packets: 0</div>
+        </footer>
+    </div>
+
+    <script src="/script.js"></script>
+</body>
+</html>
