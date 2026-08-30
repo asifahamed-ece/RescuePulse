@@ -86,54 +86,6 @@ static void run_parity_test(void);
 #endif
 
 /* ------------------------------------------------------------------ */
-/*  Memory-monitor globals (filled by app_main, read by the monitor)  */
-/* ------------------------------------------------------------------ */
-static TaskHandle_t g_h_capture   = NULL;
-static TaskHandle_t g_h_inference = NULL;
-
-/* ------------------------------------------------------------------ */
-/*  memory_monitor_task (Core 0, low priority)                        */
-/*  Reports DRAM, PSRAM and per-task high-water marks every 10 s.     */
-/*  HWM is returned in WORDS by FreeRTOS, so we multiply by 4.        */
-/* ------------------------------------------------------------------ */
-static void memory_monitor_task(void *arg)
-{
-    const TickType_t period = pdMS_TO_TICKS(10000);  /* 10 seconds */
-    uint32_t tick = 0;
-
-    while (1) {
-        vTaskDelay(period);
-        tick += 10;
-
-        UBaseType_t hwm_cap   = (g_h_capture   != NULL)
-                              ? uxTaskGetStackHighWaterMark(g_h_capture)   : 0;
-        UBaseType_t hwm_inf   = (g_h_inference != NULL)
-                              ? uxTaskGetStackHighWaterMark(g_h_inference) : 0;
-
-        /* Stack headroom = allocated stack size - bytes actually used.
-         * Allocated size is in BYTES; HWM is in WORDS (4 bytes/word). */
-        uint32_t used_cap    = (uint32_t)hwm_cap * 4;
-        uint32_t used_inf    = (uint32_t)hwm_inf * 4;
-        uint32_t head_cap    = TASK_STACK_CAPTURE   - used_cap;
-        uint32_t head_inf    = TASK_STACK_INFERENCE - used_inf;
-
-        ESP_LOGI("MEM", "----- t=%us ------------------------------------------------",
-                 (unsigned)tick);
-        ESP_LOGI("MEM", "Internal free   : %u B   | min-ever: %u B",
-                 (unsigned)esp_get_free_heap_size(),
-                 (unsigned)xPortGetMinimumEverFreeHeapSize());
-        ESP_LOGI("MEM", "PSRAM free      : %u B   | min-ever: %u B",
-                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
-                 (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
-        ESP_LOGI("MEM", "Capture   task  : used %5u / %5u B   (headroom %5u B)",
-                 (unsigned)used_cap, TASK_STACK_CAPTURE,   (unsigned)head_cap);
-        ESP_LOGI("MEM", "Inference task  : used %5u / %5u B   (headroom %5u B)",
-                 (unsigned)used_inf, TASK_STACK_INFERENCE, (unsigned)head_inf);
-        ESP_LOGI("MEM", "----------------------------------------------------------");
-    }
-}
-
-/* ------------------------------------------------------------------ */
 /*  Quantization                                                      */
 /* ------------------------------------------------------------------ */
 static void quantize_mfcc(const float mfcc[N_WIN][N_MFCC], int8_t *out)
@@ -404,24 +356,7 @@ static void inference_task(void *arg)
 void app_main(void)
 {
     ESP_LOGI(TAG, "BUILD MARKER PHASE11 (ST7735S SPI TFT + Dual-Mic TDOA DoA Siren Detection)");
-
-    /* ----------------------------------------------------------------
-     * BOOT-TIME MEMORY SNAPSHOT
-     * Runs before anything is initialized, so it reflects the true
-     * static (.bss + .data) footprint of the firmware. After init we
-     * will print again to see what got carved out of the heaps.
-     * ---------------------------------------------------------------- */
-    ESP_LOGI("MEM", "===== BOOT MEMORY SNAPSHOT =====");
-    ESP_LOGI("MEM", "Internal free heap (before init) : %u bytes",
-             (unsigned)esp_get_free_heap_size());
-    ESP_LOGI("MEM", "Min-ever free heap (before init) : %u bytes",
-             (unsigned)xPortGetMinimumEverFreeHeapSize());
-    ESP_LOGI("MEM", "PSRAM free (before init)         : %u bytes",
-             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    ESP_LOGI("MEM", "PSRAM min-ever free (before init): %u bytes",
-             (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
-    ESP_LOGI("MEM", "=================================");
-
+    
     /* Initialize Display */
     if (display_st7735s_init() != ESP_OK) {
         ESP_LOGW(TAG, "ST7735S Display Init Failed or Skipped");
@@ -460,51 +395,12 @@ void app_main(void)
     run_parity_test();
 #endif
 
-    /* ----------------------------------------------------------------
-     * POST-INIT MEMORY SNAPSHOT
-     * After all inits (including the 200 KB tensor arena in PSRAM
-     * and the traffic_ctrl queue), see what's left in each pool.
-     * ---------------------------------------------------------------- */
-    ESP_LOGI("MEM", "===== POST-INIT MEMORY SNAPSHOT =====");
-    ESP_LOGI("MEM", "Internal free heap (after init) : %u bytes",
-             (unsigned)esp_get_free_heap_size());
-    ESP_LOGI("MEM", "Min-ever free heap (after init) : %u bytes",
-             (unsigned)xPortGetMinimumEverFreeHeapSize());
-    ESP_LOGI("MEM", "PSRAM free (after init)         : %u bytes",
-             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    ESP_LOGI("MEM", "PSRAM min-ever free (after init): %u bytes",
-             (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
-    ESP_LOGI("MEM", "Largest free internal block     : %u bytes",
-             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
-    ESP_LOGI("MEM", "Largest free PSRAM block        : %u bytes",
-             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
-    ESP_LOGI("MEM", "====================================");
-
-    /* Save the task handles so we can query their high-water marks later.
-     * (Previously these were NULL because we didn't need them.) */
-    TaskHandle_t hCapture   = NULL;
-    TaskHandle_t hInference = NULL;
-
     xTaskCreatePinnedToCore(audio_capture_task, "audio_capture",
-                            TASK_STACK_CAPTURE, NULL, 5, &hCapture, 0);
+                            TASK_STACK_CAPTURE, NULL, 5, NULL, 0);
     xTaskCreatePinnedToCore(inference_task, "inference",
-                            TASK_STACK_INFERENCE, NULL, 4, &hInference, 1);
+                            TASK_STACK_INFERENCE, NULL, 4, NULL, 1);
 
     ESP_LOGI(TAG, "Pipeline started: capture(Core0) -> inference(Core1)");
-
-    /* ----------------------------------------------------------------
-     * RUNTIME MEMORY MONITOR TASK
-     * Dedicated low-priority task that prints memory + HWM stats once
-     * every 10 seconds. It also reads each work-task's HWM so you can
-     * see how much stack headroom they actually have.
-     * ---------------------------------------------------------------- */
-    xTaskCreatePinnedToCore(memory_monitor_task, "mem_monitor",
-                            4096, (void *)0, 1, NULL, 0);
-
-    /* Keep hCapture / hInference alive so the monitor task can use them
-     * via globals (declared below). */
-    g_h_capture   = hCapture;
-    g_h_inference = hInference;
 }
 
 #ifdef RP_PARITY_TEST
