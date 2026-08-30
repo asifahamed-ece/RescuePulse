@@ -1,5 +1,14 @@
 <div align="center">
 
+![Edge AI](https://img.shields.io/badge/Edge_AI-TinyML-blue)
+![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-green)
+![TFLite Micro](https://img.shields.io/badge/ML-TFLite_Micro-orange)
+![ESP-IDF](https://img.shields.io/badge/Framework-ESP--IDF-lightgrey)
+![Real-Time](https://img.shields.io/badge/Real--Time-Detection-red)
+![Dual-Core](https://img.shields.io/badge/Architecture-Dual--Core-yellow)
+![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS-blue)
+![I2S Audio](https://img.shields.io/badge/Audio-I2S--INMP441-cyan)
+
 # RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA)
 
 ### Real-Time Acoustic AI • Edge Computing • Smart Traffic Routing
