@@ -1,8 +1,4 @@
-# RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA)
-
-### Real-Time Acoustic AI • Edge Computing • Smart Traffic Routing
-
-<div align="center">
+<div align="left">
 
 <img src="assets/banner.svg" alt="Animated RescuePulse banner: the RESCUEPULSE wordmark wipes open from the left in a cyan-to-blue gradient above a two-tone emergency siren wail trace that draws itself across three rising-and-falling sweep cycles, while a cyan highlight sweeps the top bar, a green status dot pulses once per loop, and the LEFT, CENTER and RIGHT lane markers light in sequence beside the line ESP32-S3, 16 kHz stereo, zero cloud." width="820"/>
 
@@ -17,6 +13,9 @@
 
 </div>
 
+---
+
+## RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA)
 RescuePulse is an on-device edge-AI system on the ESP32-S3 that detects emergency vehicle sirens
 (ambulances, fire engines, police) against heavy urban noise and estimates which way they are
 approaching from — **LEFT**, **CENTER**, or **RIGHT** — before the vehicle is visually in range.
