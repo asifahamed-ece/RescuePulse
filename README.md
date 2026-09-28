@@ -1,8 +1,10 @@
-<div align="center">
+# RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA)
+
+### Real-Time Acoustic AI • Edge Computing • Smart Traffic Routing
 
 <div align="center">
-  <img src="assets/banner.svg" alt="Animated RescuePulse banner: the RESCUEPULSE wordmark wipes open from the left in a cyan-to-blue gradient above a two-tone emergency siren wail trace that draws itself across three rising-and-falling sweep cycles, while a cyan highlight sweeps the top bar, a green status dot pulses once per loop, and the LEFT, CENTER and RIGHT lane markers light in sequence beside the line ESP32-S3, 16 kHz stereo, zero cloud." width="820"/>
-</div>
+
+<img src="assets/banner.svg" alt="Animated RescuePulse banner: the RESCUEPULSE wordmark wipes open from the left in a cyan-to-blue gradient above a two-tone emergency siren wail trace that draws itself across three rising-and-falling sweep cycles, while a cyan highlight sweeps the top bar, a green status dot pulses once per loop, and the LEFT, CENTER and RIGHT lane markers light in sequence beside the line ESP32-S3, 16 kHz stereo, zero cloud." width="820"/>
 
 ![Edge AI](https://img.shields.io/badge/Edge_AI-TinyML-blue)
 ![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-green)
@@ -15,20 +17,14 @@
 
 </div>
 
----
+RescuePulse is an on-device edge-AI system on the ESP32-S3 that detects emergency vehicle sirens
+(ambulances, fire engines, police) against heavy urban noise and estimates which way they are
+approaching from — **LEFT**, **CENTER**, or **RIGHT** — before the vehicle is visually in range.
+Detection drives a three-lane traffic light array that clears the siren lane and holds the others.
 
-RescuePulse is a high-performance, real-time edge computing system deployed on the ESP32-S3 microcontroller. It utilizes an on-device quantized Deep Neural Network (DNN) and a dual-microphone MEMS array to accurately detect emergency vehicle sirens (ambulances, fire engines, police) and determine their directional origin (LEFT, RIGHT, or CENTER) before the vehicle is visually in range.
-
-The entire audio preprocessing, feature extraction, Time Difference of Arrival (TDOA) correlation, and neural network inference execute locally on-chip in real time with zero cloud dependency. Per-frame compute is ~18 ms (MFCC 3.3–3.4 ms measured, plus INT8 TFLite inference); the end-to-end response is dominated by the 1.04 s acoustic context and the consensus window rather than by computation.
-
----
-
-
-## System Pipeline Visualization
-
-
-
----
+A dual INMP441 MEMS array feeds stereo I2S capture, ESP-DSP cross-correlation for direction, MFCC
+feature extraction, and an INT8 TFLite Micro classifier. Everything runs on-chip, in real time, with
+no cloud dependency.
 
 ---
 
@@ -102,55 +98,59 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
 ```
 
 </details>
----
-
-## Live Hardware Execution Logs
-
-Below is a serial capture from an ESP32-S3 running live dual-microphone inference in real time:
-
-> **This capture predates the current vote window.** The `[n/5]` counters and the ~5.2 s spacing
-> between lines are from a build with `VOTE_WINDOWS 5`. The firmware in this repository now uses
-> `VOTE_WINDOWS 4` / `VOTE_THRESH 3` (`src/main.c`), so a current build logs `[n/4]`. The
-> confidence values, RMS levels and `Lag` readings below are unaffected and remain the source of
-> the values used in the diagrams. Re-capture this log on your hardware to refresh it.
-
-```text
-I (1410146) rescuepulse: 🔇 Background Noise [0/5] (Conf: 0.91) [RMS L:0.028 R:0.031]
-W (1415336) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.99) [3/5] [RMS L:0.087 R:0.043, Lag: -4, MaxPCM: 9100]
-W (1420546) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.88) [4/5] [RMS L:0.082 R:0.047, Lag: -4, MaxPCM: 8092]
-W (1425746) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 1.00) [5/5] [RMS L:0.091 R:0.165, Lag: 5, MaxPCM: 15097]
-W (1430936) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [5/5] [RMS L:0.066 R:0.090, Lag: 5, MaxPCM: 9646]
-W (1436146) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.97) [5/5] [RMS L:0.083 R:0.060, Lag: -1, MaxPCM: 11096]
-W (1441346) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.98) [5/5] [RMS L:0.094 R:0.064, Lag: -1, MaxPCM: 10679]
-W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:0.041 R:0.042, Lag: 0, MaxPCM: 6456]
-I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
-```
-
-### System Visual Demonstrations
-
-<div align="center">
-  <img src="assets/RescuePulse-Display-Boot.jpg" alt="Boot Display" width="400"/>
-  <img src="assets/Traffic_Demo.jpg" alt="Traffic Noise Demo" width="400"/>
-</div>
-*<small> Left: System boot screen showing startup status and initialization.  
-  
-Right: Traffic noise demonstration showing real-time siren detection and direction of arrival.</small>*
-
-#### Direction of Arrival Visualization
-<div align="center">
-  <img src="assets/Siren-Left.jpg" alt="Siren Detection from Left" width="280"/>
-  <img src="assets/Siren-Right.jpg" alt="Siren Detection from Right" width="280"/>
-  <img src="assets/Centre-Siren.jpg" alt="Siren Detection from Center" width="280"/>
-</div>
-*<small>Real-time visualizations of siren detection from different microphone positions: Left, Right, and Center.</small>*
 
 ---
 
-### Model Training Outcomes
+## Live Demo
 
-<img src="models/confusion_matrix.png" height="400" width="400" />
+All photographs below are real captures from the running prototype. Images are cropped to a uniform
+ratio and captioned by `scripts/make_gallery.py` so every row aligns at any viewport width.
 
-<img src="models/training_curves.png" height="400" width="1000" />
+### Direction of Arrival
+
+<div align="center">
+  <img src="assets/gallery/doa-left.jpg" alt="Siren detected on the left: the ST7735S panel reads SIREN, LEFT, FROM LEFT, C:80% Lag:-4, with per-channel RMS bars." width="320"/>
+  <img src="assets/gallery/doa-centre.jpg" alt="Siren detected head-on: the ST7735S panel reads SIREN, CENTER, FRONT/BACK, C:96% Lag:1, with per-channel RMS bars." width="320"/>
+  <img src="assets/gallery/doa-right.jpg" alt="Siren detected on the right: the ST7735S panel reads SIREN, RIGHT, FROM RIGHT, C:94% Lag:6, with per-channel RMS bars." width="320"/>
+</div>
+
+*Three live verdicts from a single siren, moved around the microphone pair. `Lag` is the TDOA
+cross-correlation peak in samples; its sign and magnitude select the lane.*
+
+### Traffic Light Response
+
+<div align="center">
+  <img src="assets/gallery/display-boot.jpg" alt="Boot display showing startup status and initialization on the 128 by 128 ST7735S panel." width="430"/>
+  <img src="assets/gallery/traffic-demo.jpg" alt="Traffic-noise demonstration showing real-time siren detection and direction of arrival." width="430"/>
+</div>
+
+<div align="center">
+  <img src="assets/gallery/bench-normal.jpg" alt="MODE_NORMAL: the three-lane array cycling on a standard green to yellow to red sequence." width="230"/>
+  <img src="assets/gallery/bench-left.jpg" alt="SIREN ON LEFT: the left lane held green and the panel reads TRAFFIC, Cont: 1 Left." width="230"/>
+  <img src="assets/gallery/bench-centre.jpg" alt="SIREN ON CENTRE: the centre lane held green and the panel reads TRAFFIC, Cont: 1 Center." width="230"/>
+  <img src="assets/gallery/bench-right.jpg" alt="SIREN ON RIGHT: the right lane held green and the panel reads TRAFFIC, Cont: 1 Right." width="230"/>
+</div>
+
+*Top: the controller at boot in `MODE_NORMAL`, then a live traffic-noise detection. Bottom: the
+nine-lamp GPIO array and the ST7735S panel responding to a siren presented on each lane in turn,
+with a multimeter on the lamp rail.*
+
+### Model Training
+
+<div align="center">
+  <img src="assets/gallery/confusion-matrix.jpg" alt="Confusion matrix for the siren versus noise classifier." width="330"/>
+  <img src="assets/gallery/model-summary.jpg" alt="Keras model summary listing each layer's output shape and parameter count." width="430"/>
+</div>
+
+<div align="center">
+  <img src="assets/gallery/training-curves.jpg" alt="Training curves for loss and accuracy across epochs." width="900"/>
+</div>
+
+*The confusion matrix and the Keras `model.summary()` capture come from `scripts/train_model.py`; the
+summary is the source of the tensor shapes in the CNN diagram below.*
+
+Board reference: [`assets/ESP32-S3-WROOM-N16R8-Pinout.pdf`](assets/ESP32-S3-WROOM-N16R8-Pinout.pdf)
+(one page, module pinout used to validate the GPIO assignments in this README).
 
 ---
 
@@ -163,11 +163,11 @@ Right: Traffic noise demonstration showing real-time siren detection and directi
 | **MCU** | ESP32-S3-WROOM-1-N16R8 (Edgehax N16R8 Pro) | Dual-core Xtensa LX7 @ 240 MHz, 16 MB Flash, 8 MB Octal PSRAM |
 | **Microphone 1** | INMP441 I2S MEMS Microphone | Left acoustic sensor |
 | **Microphone 2** | INMP441 I2S MEMS Microphone | Right acoustic sensor |
+| **Display** | ST7735S 128×128 RGB SPI TFT | Verdict, direction and confidence readout |
+| **Traffic array** | 9 GPIO-driven RGB LEDs | Three lanes × red / yellow / green |
 | **Power** | 3.3V Regulated Power Rail | Low-noise analog/digital supply |
 
-### Hardware Wiring Maps
-
-#### 1. Dual INMP441 Microphones (I2S Audio Bus)
+### Dual INMP441 Microphones (I2S Audio Bus)
 
 | Signal | Mic 1 (Left Channel) | Mic 2 (Right Channel) | ESP32-S3 Pin | Function |
 |---|---|---|---|---|
@@ -178,7 +178,9 @@ Right: Traffic noise demonstration showing real-time siren detection and directi
 | **SD / DOUT** | SD | SD | **GPIO 17** | Serial Data (shared single DIN) |
 | **L/R** | **Tied to GND** | **Tied to 3.3V** | — | Hardware slot selection |
 
-#### 2. ST7735S SPI TFT Display (128x128 RGB)
+*How shared SD works:* During standard Philips I2S transmission, Mic 1 drives the data bus during the Left slot (WS LOW) and tri-states its output driver during the Right slot (WS HIGH), while Mic 2 drives during the Right slot and tri-states during the Left slot.
+
+### ST7735S SPI TFT Display (128×128 RGB)
 
 | ST7735S Pin | ESP32-S3 GPIO | Function |
 |---|---|---|
@@ -190,8 +192,6 @@ Right: Traffic noise demonstration showing real-time siren detection and directi
 | **BLK / LED** | **GPIO 7** | Backlight (3.3V) |
 | **VCC** | **3.3V** | Power supply |
 | **GND** | **GND** | Ground |
-
-*How shared SD works:* During standard Philips I2S transmission, Mic 1 drives the data bus during the Left slot (WS LOW) and tri-states its output driver during the Right slot (WS HIGH), while Mic 2 drives during the Right slot and tri-states during the Left slot.
 
 ---
 
@@ -248,7 +248,7 @@ Input: (64, 13) MFCC Spectrogram
 ```
 
 *Shapes are `(time_steps, features)`, matching the Keras `model.summary()` capture in the
-[Assets Gallery](#assets-gallery). Class index `0 = Noise`, `1 = Siren`.*
+[Model Training](#model-training) gallery.*
 
 </details>
 
@@ -269,119 +269,27 @@ Input: (64, 13) MFCC Spectrogram
 
 ---
 
-## Repository Structure
-
-```
-RescuePulse/
-├── Rescue_Pulse_PIO/            # PlatformIO ESP32-S3 Firmware Project
-│   ├── src/
-│   │   ├── main.c               # Core orchestration, TDOA DoA, RMS metering, voting
-│   │   ├── i2s_capture.c/.h     # 16kHz 32-bit stereo I2S DMA driver
-│   │   ├── mfcc.c/.h            # ESP-DSP accelerated MFCC extraction
-│   │   ├── inference.cpp/.h     # TFLite Micro C++ bridge & tensor arena management
-│   │   ├── model_data.cc        # Flash-mapped INT8 TFLite model binary
-│   │   ├── model_config.h       # Standardization & affine quantization constants
-│   │   ├── mel_tables.h         # Precomputed filterbank & DCT tables
-│   │   └── test_vectors.h       # Pre-computed validation test vectors
-│   ├── platformio.ini           # Build flags, board config, and dependencies
-│   └── partitions_16MB.csv      # 16 MB flash partition configuration
-│
-├── datasets/                    # Audio datasets & metadata manifests
-├── models/                      # Trained Keras models & quantization artifacts
-├── scripts/                     # Python ML training & validation pipeline
-│   ├── audit_dataset.py         # Audio dataset validation and deduplication
-│   ├── process_raw_data.py      # Resampling and audio normalization
-│   ├── extract_features.py      # Batch MFCC extraction with SpecAugment
-│   ├── train_model.py           # Keras 1D CNN training with clip-level voting
-│   ├── quantize_model.py        # Post-training int8 TFLite quantization
-│   └── gen_mfcc_test_vectors.py # C header generation for mathematical parity tests
-└── assets/                      # Schematics, logs, and documentation media
-```
-
-### Assets Gallery
-
-Bench captures of the working prototype, and the trained-model summary.
-
-**Traffic light response to each detected direction**
-
-<div align="center">
-  <img src="assets/Left_detection.jpg" alt="Left lane held green" width="300"/>
-  <img src="assets/Center_detection.jpg" alt="Center lane held green" width="300"/>
-  <img src="assets/Right_detect.jpg" alt="Right lane traffic light responding" width="300"/>
-</div>
-*<small>Bench verification: a siren detected on the left, centre and right lane respectively, with the
-nine-lamp GPIO array and the ST7735S panel responding and a multimeter on the lamp rail.</small>*
-
-**Normal-mode startup and trained model summary**
-
-<div align="center">
-  <img src="assets/traffic_init.jpg" alt="Normal mode traffic cycle" width="300"/>
-  <img src="assets/Train-RescuePulse.png" alt="Keras model summary" width="380"/>
-</div>
-*<small>Left: the controller in `MODE_NORMAL` at boot, cycling the lanes. Right: the Keras summary
-printed by `scripts/train_model.py`, listing each layer's output shape and parameter count — the
-source of the tensor shapes shown in the CNN diagram above.</small>*
-
-Board reference: [`assets/ESP32-S3-WROOM-N16R8-Pinout.pdf`](assets/ESP32-S3-WROOM-N16R8-Pinout.pdf)
-(one page, module pinout used to validate the GPIO assignments in this README).
-
----
-
 ## Phase 2: Emergency Vehicle Priority Traffic Light Control
 
-### Overview
+The traffic controller is tightly integrated with the detection pipeline: `inference_task` (Core 1)
+publishes `detection_msg_t` messages on a FreeRTOS queue, and `traffic_ctrl_task` (Core 1, lower
+priority) consumes them to drive the GPIO array. Because inference runs at priority 4 and traffic
+control at 3, the siren verdict is always available before traffic state is updated.
 
-Phase 2 extends RescuePulse with intelligent traffic light management that responds dynamically to incoming emergency vehicles. When a siren is detected by the acoustic system, the traffic controller automatically manages lane states to provide safe priority passage for the emergency vehicle while maintaining intersection safety through proper clearance sequencing.
+### Operating Modes
 
-### Traffic Control Architecture
+| Mode | Behaviour |
+|------|-----------|
+| **MODE_NORMAL** | Standard cycling: LEFT → CENTER → RIGHT → LEFT. Each lane runs GREEN (8s) → YELLOW (2s) → RED, with no external input. |
+| **MODE_CLEARANCE** | All lanes RED for 2s. Entered when a siren arrives on a different lane or during a yellow phase, so the intersection is clear before priority begins. |
+| **MODE_EMERGENCY** | The siren lane holds continuous GREEN and all other lanes are held RED. Green extends indefinitely while the siren persists, and the mode expires after 10s without a detection. |
 
-**Three Operating Modes:**
-
-1. **MODE_NORMAL** — Standard traffic cycling
-   - Lane sequence: LEFT → CENTER → RIGHT → LEFT (repeating)
-   - Each lane cycles: GREEN (8s) → YELLOW (2s) → RED
-   - All lanes cycle through automatically with no external input
-
-2. **MODE_CLEARANCE** — Safety transition phase
-   - All traffic lights set to RED for 2 seconds
-   - Ensures intersection is cleared before emergency vehicle priority begins
-   - Automatically activated when transitioning from NORMAL to EMERGENCY
-   - Prevents collisions during mode switches
-
-3. **MODE_EMERGENCY** — Emergency vehicle priority
-   - Siren-detected lane receives continuous GREEN
-   - All other lanes held at RED
-   - Extends green indefinitely while siren continues
-   - Automatically exits after 10 seconds without siren detection
-
-### Detection Message Flow
-
-The inference task (Core 1) continuously sends `detection_msg_t` messages via FreeRTOS queue:
-
-```c
-typedef struct {
-    bool  siren_active;   /* true if siren detected */
-    lane_t direction;     /* LANE_CENTER, LANE_LEFT, or LANE_RIGHT */
-    float confidence;     /* Classification confidence (0.0 - 1.0) */
-} detection_msg_t;
-```
-
-The traffic controller processes these messages to:
-- Update emergency lane information
-- Refresh the "last siren detected" timestamp
-- Optimize state transitions to minimize clearance delays when the emergency vehicle is already on a GREEN lane
-
-### GPIO Pin Mapping
-
-Nine GPIO pins control the 3-lane traffic light array (RGB LEDs):
-
-| Lane | Red | Yellow | Green |
-|------|-----|--------|-------|
-| **LEFT** | GPIO 1 | GPIO 2 | GPIO 3 |
-| **CENTER** | GPIO 4 | GPIO 5 | GPIO 6 |
-| **RIGHT** | GPIO 13 | GPIO 14 | GPIO 21 |
-
-All pins are configured as digital outputs with no pull resistors. Drive strength is suitable for direct LED control with current-limiting resistors on the hardware side.
+**Smart clearance avoidance:** if a siren is detected on a lane that is already GREEN in NORMAL mode
+and not in its yellow phase, the controller transitions straight to EMERGENCY without the 2s
+clearance delay. **Message processing:** the controller polls for detections every 100 ms, keeping
+state transitions responsive while remaining predictable for non-emergency traffic. **Timeout safety:**
+EMERGENCY expires after 10s without a detection, so the system returns to normal operation even if
+messages stop unexpectedly.
 
 ### State Machine Transitions
 
@@ -418,24 +326,95 @@ All pins are configured as digital outputs with no pull resistors. Drive strengt
 
 </details>
 
-### Optimization Features
+### Detection Message Flow
 
-**Smart Clearance Avoidance:** If a siren is detected on a lane that is already GREEN in NORMAL mode and not in YELLOW phase, the controller directly transitions to EMERGENCY mode without the clearance delay, reducing emergency vehicle wait time.
+```c
+typedef struct {
+    bool  siren_active;   /* true if siren detected */
+    lane_t direction;     /* LANE_CENTER, LANE_LEFT, or LANE_RIGHT */
+    float confidence;     /* Classification confidence (0.0 - 1.0) */
+} detection_msg_t;
+```
 
-**Message Queue Processing:** The traffic controller checks for detection messages every 100 ms, allowing responsive updates while maintaining predictable state transitions for non-emergency traffic.
+The traffic controller processes these messages to:
+- Update emergency lane information
+- Refresh the "last siren detected" timestamp
+- Optimize state transitions to minimize clearance delays when the emergency vehicle is already on a GREEN lane
 
-**Timeout Safety:** Emergency mode automatically expires if 10 seconds pass without any siren detection, ensuring the system returns to normal operation even if detection messages stop unexpectedly.
+### Lane GPIO Pin Mapping
 
-### Integration with Phase 1 (Acoustic Detection)
+Nine GPIO pins control the 3-lane traffic light array (RGB LEDs):
 
-The traffic control system is tightly integrated with the siren detection pipeline:
+| Lane | Red | Yellow | Green |
+|------|-----|--------|-------|
+| **LEFT** | GPIO 1 | GPIO 2 | GPIO 3 |
+| **CENTER** | GPIO 4 | GPIO 5 | GPIO 6 |
+| **RIGHT** | GPIO 13 | GPIO 14 | GPIO 21 |
 
-1. **inference_task** (Core 1) performs acoustic analysis and generates detection messages
-2. Detection messages are sent via `g_traffic_queue` (FreeRTOS queue)
-3. **traffic_ctrl_task** (also Core 1, lower priority) receives and processes messages
-4. GPIO state is updated in real-time based on the current mode and lane
+All pins are configured as digital outputs with no pull resistors. Drive strength is suitable for direct LED control with current-limiting resistors on the hardware side.
 
-Both tasks run on Core 1 with traffic detection at priority 4 and traffic control at priority 3, ensuring the higher-priority inference task always completes siren detection before traffic state is updated.
+---
+
+## Live Hardware Execution Logs
+
+A serial capture from an ESP32-S3 running live dual-microphone inference in real time:
+
+> **This capture predates the current vote window.** The `[n/5]` counters and the ~5.2 s spacing
+> between lines are from a build with `VOTE_WINDOWS 5`. The firmware in this repository now uses
+> `VOTE_WINDOWS 4` / `VOTE_THRESH 3` (`src/main.c`), so a current build logs `[n/4]`. The
+> confidence values, RMS levels and `Lag` readings below are unaffected and remain the source of
+> the values used in the diagrams. Re-capture this log on your hardware to refresh it.
+
+```text
+I (1410146) rescuepulse: 🔇 Background Noise [0/5] (Conf: 0.91) [RMS L:0.028 R:0.031]
+W (1415336) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.99) [3/5] [RMS L:0.087 R:0.043, Lag: -4, MaxPCM: 9100]
+W (1420546) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.88) [4/5] [RMS L:0.082 R:0.047, Lag: -4, MaxPCM: 8092]
+W (1425746) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 1.00) [5/5] [RMS L:0.091 R:0.165, Lag: 5, MaxPCM: 15097]
+W (1430936) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [5/5] [RMS L:0.066 R:0.090, Lag: 5, MaxPCM: 9646]
+W (1436146) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.97) [5/5] [RMS L:0.083 R:0.060, Lag: -1, MaxPCM: 11096]
+W (1441346) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.98) [5/5] [RMS L:0.094 R:0.064, Lag: -1, MaxPCM: 10679]
+W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:0.041 R:0.042, Lag: 0, MaxPCM: 6456]
+I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
+```
+
+---
+
+## Repository Structure
+
+```
+RescuePulse/
+├── Rescue_Pulse_PIO/            # PlatformIO ESP32-S3 Firmware Project
+│   ├── src/
+│   │   ├── main.c               # Core orchestration, TDOA DoA, RMS metering, voting
+│   │   ├── i2s_capture.c/.h     # 16kHz 32-bit stereo I2S DMA driver
+│   │   ├── mfcc.c/.h            # ESP-DSP accelerated MFCC extraction
+│   │   ├── inference.cpp/.h     # TFLite Micro C++ bridge & tensor arena management
+│   │   ├── display_st7735s.c/.h # 128x128 RGB SPI TFT driver
+│   │   ├── traffic_ctrl.c/.h    # NORMAL / CLEARANCE / EMERGENCY lane state machine
+│   │   ├── model_data.cc        # Flash-mapped INT8 TFLite model binary
+│   │   ├── model_config.h       # Standardization & affine quantization constants
+│   │   ├── mel_tables.h         # Precomputed filterbank & DCT tables
+│   │   └── test_vectors.h       # Pre-computed validation test vectors
+│   ├── platformio.ini           # Build flags, board config, and dependencies
+│   └── partitions_16MB.csv      # 16 MB flash partition configuration
+│
+├── datasets/                    # Audio datasets & metadata manifests
+├── models/                      # Trained Keras models & quantization artifacts
+├── scripts/                     # Python ML training, validation & media pipeline
+│   ├── audit_dataset.py         # Audio dataset validation and deduplication
+│   ├── process_raw_data.py      # Resampling and audio normalization
+│   ├── extract_features.py      # Batch MFCC extraction with SpecAugment
+│   ├── train_model.py           # Keras 1D CNN training with clip-level voting
+│   ├── quantize_model.py        # Post-training int8 TFLite quantization
+│   ├── gen_mfcc_test_vectors.py # C header generation for mathematical parity tests
+│   ├── make_gallery.py          # Crop/frame/title the README photo gallery
+│   ├── preview_svgs.py          # Render & statically validate the animated SVGs
+│   └── create_gifs.py           # Build documentation GIFs from capture frames
+└── assets/                      # Schematics, animated SVGs, logs, and photos
+    ├── gallery/                 # Generated, uniformly cropped README cards
+    ├── *.svg                    # Animated banner, architecture, DoA, CNN, FSM
+    └── ESP32-S3-WROOM-N16R8-Pinout.pdf
+```
 
 ---
 
@@ -482,41 +461,3 @@ I (xxx) rescuepulse: Noise Inference: Predicted 0 (Expected 0) - PASS [scores 0.
 ## License
 
 This project is licensed under the Apache 2.0 License. See [`LICENSE`](LICENSE).
-
----
-
-## Prototype: RescuePulse
-
-This repository contains the prototype implementation of the RescuePulse system, featuring real-time emergency vehicle siren detection with Direction of Arrival (DoA) estimation and intelligent traffic light control. The prototype demonstrates the complete edge AI pipeline from acoustic sensing through neural network inference to dynamic traffic management.
-
-### Prototype Components
-
-1. **Acoustic Sensing Phase** (Phase 1)
-   - Dual INMP441 MEMS microphones for stereo audio capture
-   - ESP-DSP accelerated MFCC feature extraction
-   - TDOA-based Direction of Arrival estimation
-   - INT8 quantized 1D CNN for siren vs noise classification
-
-2. **Traffic Control Phase** (Phase 2)
-   - Three-state traffic light state machine (NORMAL → CLEARANCE → EMERGENCY)
-   - GPIO-controlled RGB LED traffic lights (9 pins total)
-   - Smart clearance avoidance to minimize emergency vehicle wait time
-   - FreeRTOS-based message passing between detection and control tasks
-
-3. **System Integration**
-   - Dual-core FreeRTOS architecture (Core 0: I2S capture, Core 1: processing & control)
-   - Static memory allocation with zero dynamic malloc in task loops
-   - Ping-pong buffers for continuous audio capture
-   - External PSRAM for tensor arena storage
-
-Build and flash instructions are in [Build and Deployment](#build-and-deployment) above.
-
-The prototype outputs real-time detection logs showing siren detection events with direction (LEFT/RIGHT/CENTER) and confidence scores, demonstrating the complete acoustic-to-control pipeline.
-
-### Validation Results
-
-The prototype has been validated with:
-- Mathematical parity testing showing <1% L2 error vs Python Librosa reference
-- Live hardware execution demonstrating reliable siren detection in noisy environments
-- Traffic light control responding correctly to detected siren directions
-- End-to-end latency measurements confirming real-time performance
