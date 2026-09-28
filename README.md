@@ -1,5 +1,9 @@
 <div align="center">
 
+<div align="center">
+  <img src="assets/banner.svg" alt="Animated RescuePulse banner: the RESCUEPULSE wordmark wipes open from the left in a cyan-to-blue gradient above a two-tone emergency siren wail trace that draws itself across three rising-and-falling sweep cycles, while a cyan highlight sweeps the top bar, a green status dot pulses once per loop, and the LEFT, CENTER and RIGHT lane markers light in sequence beside the line ESP32-S3, 16 kHz stereo, zero cloud." width="820"/>
+</div>
+
 ![Edge AI](https://img.shields.io/badge/Edge_AI-TinyML-blue)
 ![ESP32-S3](https://img.shields.io/badge/MCU-ESP32--S3-green)
 ![TFLite Micro](https://img.shields.io/badge/ML-TFLite_Micro-orange)
@@ -8,10 +12,6 @@
 ![Dual-Core](https://img.shields.io/badge/Architecture-Dual--Core-yellow)
 ![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS-blue)
 ![I2S Audio](https://img.shields.io/badge/Audio-I2S--INMP441-cyan)
-
-# RescuePulse: Edge AI Emergency Siren Detection with Direction of Arrival (DoA)
-
-### Real-Time Acoustic AI • Edge Computing • Smart Traffic Routing
 
 </div>
 
@@ -26,9 +26,7 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
 
 ## System Pipeline Visualization
 
-<div align="center">
-  <img src="assets/banner.svg" alt="Animated RescuePulse banner: the RESCUEPULSE wordmark wipes open from the left in a cyan-to-blue gradient above a two-tone emergency siren wail trace that draws itself across three rising-and-falling sweep cycles, while a cyan highlight sweeps the top bar, a green status dot pulses once per loop, and the LEFT, CENTER and RIGHT lane markers light in sequence beside the line ESP32-S3, 16 kHz stereo, zero cloud." width="820"/>
-</div>
+
 
 ---
 
