@@ -359,11 +359,16 @@ All pins are configured as digital outputs with no pull resistors. Drive strengt
 
 A serial capture from an ESP32-S3 running live dual-microphone inference in real time:
 
-> **This capture predates the current vote window.** The `[n/5]` counters and the ~5.2 s spacing
-> between lines are from a build with `VOTE_WINDOWS 5`. The firmware in this repository now uses
-> `VOTE_WINDOWS 4` / `VOTE_THRESH 3` (`src/main.c`), so a current build logs `[n/4]`. The
-> confidence values, RMS levels and `Lag` readings below are unaffected and remain the source of
-> the values used in the diagrams. Re-capture this log on your hardware to refresh it.
+> **Stale capture — read it for the values, not the timing.** This log predates the current
+> firmware and is spliced from more than one session:
+> - `[n/5]` counters, but `src/main.c:34` now sets `VOTE_WINDOWS 4` / `VOTE_THRESH 3`, so a
+>   current build logs `[n/4]`.
+> - The ~5.2 s line spacing does **not** match the 1.04 s frame time (`N_SAMPLES 16640` at
+>   16 kHz) and is not explained by the window change.
+> - The counter jumps from `[0/5]` back to `[3/5]` mid-capture, confirming the splice.
+>
+> The `Conf`, `RMS` and `Lag` figures are genuine device readings and remain the source of the
+> values used in the diagrams above. Re-capture on your hardware to replace this section.
 
 ```text
 I (1410146) rescuepulse: 🔇 Background Noise [0/5] (Conf: 0.91) [RMS L:0.028 R:0.031]
