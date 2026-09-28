@@ -45,25 +45,25 @@ FONT_REG = "DejaVu-Sans-Mono"
 # `2*width` is the source resolution, i.e. 2x for a retina README.
 CARDS = [
     # --- Phase 1: the ST7735S panel ---
-    ("RescuePulse-Display-Boot.jpg", "display-boot", 430, 4 / 3, 0.42,
+    ("RescuePulse-Display-Boot.jpg", "display-boot", 320, 4 / 3, 0.42,
      "BOOT SCREEN", CYAN),
-    ("Traffic_Demo.jpg", "traffic-demo", 430, 4 / 3, 0.40,
+    ("Traffic_Demo.jpg", "traffic-demo", 320, 4 / 3, 0.40,
      "LIVE DETECTION", LIME),
     # --- Phase 1: direction of arrival ---
-    ("Siren-Left.jpg", "doa-left", 320, 4 / 3, 0.38,
+    ("Siren-Left.jpg", "doa-left", 250, 4 / 3, 0.38,
      "SOURCE LEFT", AMBER),
-    ("Siren-Right.jpg", "doa-right", 320, 4 / 3, 0.42,
+    ("Siren-Right.jpg", "doa-right", 250, 4 / 3, 0.42,
      "SOURCE RIGHT", RED),
-    ("Centre-Siren.jpg", "doa-centre", 320, 4 / 3, 0.40,
+    ("Centre-Siren.jpg", "doa-centre", 250, 4 / 3, 0.40,
      "SOURCE CENTRE", GREEN),
     # --- Phase 2: bench verification, the 3x3 GPIO lamp array ---
-    ("traffic_init.jpg", "bench-normal", 230, 4 / 3, 0.45,
+    ("traffic_init.jpg", "bench-normal", 430, 4 / 3, 0.45,
      "MODE_NORMAL", GREEN),
-    ("Left_detection.jpg", "bench-left", 230, 4 / 3, 0.45,
+    ("Left_detection.jpg", "bench-left", 430, 4 / 3, 0.45,
      "SIREN ON LEFT", AMBER),
-    ("Center_detection.jpg", "bench-centre", 230, 4 / 3, 0.45,
+    ("Center_detection.jpg", "bench-centre", 430, 4 / 3, 0.45,
      "SIREN ON CENTRE", GREEN),
-    ("Right_detect.jpg", "bench-right", 230, 4 / 3, 0.45,
+    ("Right_detect.jpg", "bench-right", 430, 4 / 3, 0.45,
      "SIREN ON RIGHT", RED),
     # --- model ---
     ("../models/confusion_matrix.png", "confusion-matrix", 330, 1 / 1, 0.5,
@@ -75,7 +75,6 @@ CARDS = [
 ]
 
 BORDER = 2
-BAR = 34
 PAD = 8
 
 
@@ -83,16 +82,17 @@ def have_magick():
     return subprocess.run(["which", "magick"], capture_output=True).returncode == 0
 
 
-def text_width(text, font, pointsize):
-    """Rendered width of `text` in pixels, used to right-align captions."""
+def text_metrics(text, font, pointsize):
+    """Rendered (width, height) of `text` in pixels."""
     r = subprocess.run(
-        ["magick", "-font", font, "-pointsize", pointsize,
-         "-format", "%w", f"label:{text}", "info:"],
+        ["magick", "-font", font, "-pointsize", str(pointsize),
+         "-format", "%w %h", f"label:{text}", "info:"],
         capture_output=True, text=True)
     try:
-        return int(r.stdout.strip())
+        w, h = (int(x) for x in r.stdout.split())
+        return w, h
     except ValueError:
-        return 0
+        return 0, 0
 
 
 def build(src, stem, width, ratio, bias, title, accent, check=False):
@@ -118,8 +118,19 @@ def build(src, stem, width, ratio, bias, title, accent, check=False):
         crop = f"{iw}x{ch}+0+{cy}"
         resize = f"{target_w}x{target_h}!"
 
+    title_pt = max(11, width // 20)
+    meta_pt = max(9, width // 26)
+
+    # The title bar is sized from the measured text boxes, not a fixed height:
+    # the point sizes scale with card width, so a constant BAR clipped the
+    # provenance line on every card wider than ~300px.
+    rule = 3
+    gap = 3
+    _, title_h = text_metrics(title, FONT, title_pt)
+    brand_w, brand_h = text_metrics("ON-DEVICE", FONT_REG, meta_pt)
+    bar = rule + PAD + title_h + gap + brand_h + PAD
     card_w = target_w + BORDER * 2
-    card_h = target_h + BAR + BORDER * 2
+    card_h = target_h + bar + BORDER * 2
     # In --check mode the card is rendered to a scratch file so the reported
     # dimensions and byte size are real, then discarded without touching OUT.
     tmp_dir = None
@@ -129,14 +140,12 @@ def build(src, stem, width, ratio, bias, title, accent, check=False):
     else:
         dst = OUT / f"{stem}.jpg"
     photo_bottom = target_h + BORDER          # y where the title bar starts
-    title_pt = str(max(11, width // 20))
-    meta_pt = str(max(9, width // 26))
-
+    title_y = photo_bottom + rule + PAD
+    brand_y = title_y + title_h + gap
     # Right-hand provenance is placed at an explicit x derived from the measured
     # text width. `-gravity northeast` + a negative X offset is NOT reliable for
     # right-insetting (the offset is applied in the opposite direction and the
     # glyphs run off the canvas), so measure and place instead of anchoring.
-    brand_w = text_width("ON-DEVICE", FONT_REG, meta_pt)
     brand_x = card_w - BORDER - PAD - brand_w
 
     # Compose: crop -> resize -> 2px border -> pad a title bar underneath.
@@ -151,15 +160,15 @@ def build(src, stem, width, ratio, bias, title, accent, check=False):
         "-extent", f"{card_w}x{card_h}",
         # accent rule separating photo from caption
         "-fill", accent, "-stroke", "none",
-        "-draw", f"rectangle 0,{photo_bottom} {card_w},{photo_bottom + 3}",
+        "-draw", f"rectangle 0,{photo_bottom} {card_w},{photo_bottom + rule}",
         # title, bottom-left of the bar
         "-gravity", "northwest",
-        "-font", FONT, "-pointsize", title_pt, "-fill", accent,
-        "-annotate", f"+{PAD}+{photo_bottom + 12}", title,
+        "-font", FONT, "-pointsize", str(title_pt), "-fill", accent,
+        "-annotate", f"+{PAD}+{title_y}", title,
         # provenance, the two ends of the bar
-        "-font", FONT_REG, "-pointsize", meta_pt, "-fill", DIM,
-        "-annotate", f"+{PAD}+{photo_bottom + 26}", "RESCUEPULSE",
-        "-annotate", f"+{brand_x}+{photo_bottom + 26}", "ON-DEVICE",
+        "-font", FONT_REG, "-pointsize", str(meta_pt), "-fill", DIM,
+        "-annotate", f"+{PAD}+{brand_y}", "RESCUEPULSE",
+        "-annotate", f"+{brand_x}+{brand_y}", "ON-DEVICE",
         "-quality", "88", "-interlace", "Plane", "-strip",
         str(dst),
     ]

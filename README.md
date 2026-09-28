@@ -109,9 +109,9 @@ ratio and captioned by `scripts/make_gallery.py` so every row aligns at any view
 ### Direction of Arrival
 
 <div align="center">
-  <img src="assets/gallery/doa-left.jpg" alt="Siren detected on the left: the ST7735S panel reads SIREN, LEFT, FROM LEFT, C:80% Lag:-4, with per-channel RMS bars." width="320"/>
-  <img src="assets/gallery/doa-centre.jpg" alt="Siren detected head-on: the ST7735S panel reads SIREN, CENTER, FRONT/BACK, C:96% Lag:1, with per-channel RMS bars." width="320"/>
-  <img src="assets/gallery/doa-right.jpg" alt="Siren detected on the right: the ST7735S panel reads SIREN, RIGHT, FROM RIGHT, C:94% Lag:6, with per-channel RMS bars." width="320"/>
+  <img src="assets/gallery/doa-left.jpg" alt="Siren detected on the left: the ST7735S panel reads SIREN, LEFT, FROM LEFT, C:80% Lag:-4, with per-channel RMS bars." width="250"/>
+  <img src="assets/gallery/doa-centre.jpg" alt="Siren detected head-on: the ST7735S panel reads SIREN, CENTER, FRONT/BACK, C:96% Lag:1, with per-channel RMS bars." width="250"/>
+  <img src="assets/gallery/doa-right.jpg" alt="Siren detected on the right: the ST7735S panel reads SIREN, RIGHT, FROM RIGHT, C:94% Lag:6, with per-channel RMS bars." width="250"/>
 </div>
 
 *Three live verdicts from a single siren, moved around the microphone pair. `Lag` is the TDOA
@@ -120,20 +120,23 @@ cross-correlation peak in samples; its sign and magnitude select the lane.*
 ### Traffic Light Response
 
 <div align="center">
-  <img src="assets/gallery/display-boot.jpg" alt="Boot display showing startup status and initialization on the 128 by 128 ST7735S panel." width="430"/>
-  <img src="assets/gallery/traffic-demo.jpg" alt="Traffic-noise demonstration showing real-time siren detection and direction of arrival." width="430"/>
+  <img src="assets/gallery/display-boot.jpg" alt="Boot display showing startup status and initialization on the 128 by 128 ST7735S panel." width="320"/>
+  <img src="assets/gallery/traffic-demo.jpg" alt="Traffic-noise demonstration showing real-time siren detection and direction of arrival." width="320"/>
 </div>
 
 <div align="center">
-  <img src="assets/gallery/bench-normal.jpg" alt="MODE_NORMAL: the three-lane array cycling on a standard green to yellow to red sequence." width="230"/>
-  <img src="assets/gallery/bench-left.jpg" alt="SIREN ON LEFT: the left lane held green and the panel reads TRAFFIC, Cont: 1 Left." width="230"/>
-  <img src="assets/gallery/bench-centre.jpg" alt="SIREN ON CENTRE: the centre lane held green and the panel reads TRAFFIC, Cont: 1 Center." width="230"/>
-  <img src="assets/gallery/bench-right.jpg" alt="SIREN ON RIGHT: the right lane held green and the panel reads TRAFFIC, Cont: 1 Right." width="230"/>
+  <img src="assets/gallery/bench-normal.jpg" alt="MODE_NORMAL: the three-lane array cycling on a standard green to yellow to red sequence." width="430"/>
+  <img src="assets/gallery/bench-left.jpg" alt="SIREN ON LEFT: the left lane held green and the panel reads TRAFFIC, Cont: 1 Left." width="430"/>
 </div>
 
-*Top: the controller at boot in `MODE_NORMAL`, then a live traffic-noise detection. Bottom: the
-nine-lamp GPIO array and the ST7735S panel responding to a siren presented on each lane in turn,
-with a multimeter on the lamp rail.*
+<div align="center">
+  <img src="assets/gallery/bench-centre.jpg" alt="SIREN ON CENTRE: the centre lane held green and the panel reads TRAFFIC, Cont: 1 Center." width="430"/>
+  <img src="assets/gallery/bench-right.jpg" alt="SIREN ON RIGHT: the right lane held green and the panel reads TRAFFIC, Cont: 1 Right." width="430"/>
+</div>
+
+*Top: the controller at boot in `MODE_NORMAL`, then a live traffic-noise detection. The four bench
+shots show the whole build — nine-lamp GPIO array, ST7735S panel and multimeter on the lamp rail —
+responding to a siren presented on each lane in turn.*
 
 ### Model Training
 
