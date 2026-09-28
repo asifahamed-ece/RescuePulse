@@ -1,22 +1,38 @@
 # Latency Analysis: Current Implementation
 
+> **Status: partially stale.** The measured serial capture this document is derived from was
+> taken on a build with `VOTE_WINDOWS 5` (the log lines still read `[n/5]`). The firmware in
+> this repository now uses `VOTE_WINDOWS 4` / `VOTE_THRESH 3` (`src/main.c:34-35`), so a current
+> build logs `[n/4]`. The **config** figures below have been corrected to the shipped values;
+> the **measured latencies** have not been re-captured and are marked as design-derived.
+> Re-capture the serial log on hardware to refresh them.
+
 ## Current Latency Breakdown
 
-The system exhibits approximately **1.0-1.6 seconds** latency from siren entry to detection output. This analysis breaks down where time is spent and suggests optimization paths.
-
-### Component-by-Component Breakdown
+Response time is dominated by two deliberate design choices — the acoustic context window and
+the consensus vote — not by computation. The breakdown:
 
 ```
 Microphone Transduction:           ~1 ms
 I2S DMA & Driver Overhead:         ~16 ms
 Audio Buffer Accumulation:         ~1040 ms  ← PRIMARY BOTTLENECK (64 frames @ 16kHz)
-MFCC Feature Extraction:           ~50 ms
-INT8 Quantization:                 ~5 ms
+MFCC Feature Extraction:           ~3.4 ms  MEASURED (parity harness)
+INT8 Quantization:                 ~1 ms
 TFLite Micro Inference:            ~15 ms
-Majority Vote Accumulation:        ~300-500 ms ← SECONDARY BOTTLENECK (5-frame window)
+Majority Vote Accumulation:        design-derived, see note below
                                    ─────────────
-Total Observed Latency:            ~1420-1620 ms (1.4-1.6 seconds)
+Per-frame compute:                 ~20 ms
 ```
+
+**Honest framing.** The `[5/5]` capture was taken on a 5-window build, so its end-to-end
+figures no longer describe the shipped firmware. What *is* solid is the per-frame compute cost
+(MFCC 3.3–3.4 ms measured on device, plus INT8 inference) and the fixed 1.04 s acoustic
+context, which follows directly from `16640 / 16000`.
+
+The vote adds a phase-dependent wait. With `VOTE_WINDOWS 4`, the counters reset on every
+4-frame boundary and a detection needs `>= 3` of those frames, so the extra wait is
+**1.04 s to 4.16 s depending on where the siren starts relative to the window boundary**,
+averaging roughly half a window (~2 s). The worst case is a full window, not a fixed offset.
 
 ### Primary Bottleneck: Audio Buffer Accumulation
 
@@ -35,16 +51,17 @@ Latency = N_SAMPLES / Sample Rate = 16640 / 16000 = 1.04 seconds
 ### Secondary Bottleneck: Majority Voting
 
 ```c
-#define VOTE_WINDOWS     5        /* Frames needed for consensus */
-VOTE_THRESH      3        /* 3/5 frames must agree (60%) */
-
-At ~100-150ms per inference cycle:
-Wait time = 5 frames × 120ms average = ~600ms per voting window
-
-Actual observed: ~300-500ms (voting accumulates in background)
+#define VOTE_WINDOWS     4        /* Frames needed for consensus (main.c:34) */
+#define VOTE_THRESH      3        /* >=3/4 siren votes = 75% agreement (main.c:35) */
 ```
 
-**Why this design?** A 5-frame majority vote (>60% agreement) strongly suppresses false positives from acoustic transients. However, it introduces additional latency waiting for consensus.
+A frame is produced roughly every 1.04 s (the acoustic context window). The vote counters
+reset at every 4-frame boundary, so consensus is decided once per ~4.16 s and the added
+wait is **1.04-4.16 s**, phase-dependent, rather than a fixed constant.
+
+**Why this design?** A 3-of-4 majority vote (75% agreement) suppresses false positives from
+acoustic transients while keeping the window short enough to be useful for a moving vehicle.
+The trade-off is a consensus wait that is not a fixed offset from the first positive frame.
 
 ---
 
@@ -52,30 +69,34 @@ Actual observed: ~300-500ms (voting accumulates in background)
 
 ### Suggestion 1: Reduce Voting Window (Low Risk)
 
-**Current:**
+The window has already been reduced once, from 5 to 4, for exactly this reason.
+
+**Current (shipped):**
 ```c
-#define VOTE_WINDOWS     5
-#define VOTE_THRESH      3        /* 3/5 = 60% agreement */
+#define VOTE_WINDOWS     4
+#define VOTE_THRESH      3        /* 3/4 = 75% agreement */
 ```
 
-**Suggested change:**
+**Possible further change:**
 ```c
 #define VOTE_WINDOWS     3
-#define VOTE_THRESH      2        /* 2/3 = 67% agreement (slightly stricter) */
+#define VOTE_THRESH      2        /* 2/3 = 67% agreement (looser, not stricter) */
 ```
 
 **Analysis:**
-- **Latency reduction:** ~200-300ms (saves 2 frames × 120ms)
+- **Latency reduction:** up to ~1.04 s of consensus wait (one frame)
 - **Risk level:** Low
-- **False positive impact:** Neutral to positive
-  - Fewer voting frames means fewer chances for random noise to accumulate votes
-  - Slightly stricter threshold (67% vs 60%) actually reduces false positives
-  - True sirens with high confidence will still pass (they pass all/most frames)
-- **True positive impact:** Minimal
+- **False positive impact:** Negative
+  - Going from 3-of-4 (75%) to 2-of-3 (67%) *loosens* the vote, so more transients can accumulate enough agreement to fire
+  - Fewer voting frames also means fewer chances for random noise to reach consensus, partly offsetting this
+- **True positive impact:** Positive
   - Strong siren detections typically show ≥80% confidence consistently
-  - Reduces requirement from 3/5 to 2/3 frames, which most strong signals meet
+  - 2-of-3 is met by most strong signals
 
-**Rationale:** This change focuses on reducing unnecessary waiting rather than loosening detection criteria.
+**Rationale:** This trades false-positive headroom for roughly one frame of latency. Whether
+that is a good trade depends on the intersection: measure the false-positive rate over several
+hours of live traffic before committing. The 3-of-4 setting errs toward safety, which is the
+right default for something that turns traffic lights green.
 
 ---
 
@@ -141,14 +162,14 @@ Combine low-risk and medium-risk changes without retraining:
 
 **Changes:**
 ```c
-#define VOTE_WINDOWS     3        /* Down from 5 */
+#define VOTE_WINDOWS     3        /* Down from 4 */
 #define VOTE_THRESH      2        /* 2/3 agreement */
 #define RMS_THRESHOLD    0.018f   /* Slight decrease from 0.02 */
 #define CONF_THRESHOLD   0.77f    /* Increase from 0.75 for stricter gate */
 ```
 
 **Projected results:**
-- **Latency:** 1.04s → ~0.75-0.85s (25-35% improvement)
+- **Latency:** saves up to one frame (~1.04 s) of consensus wait
 - **Risk level:** Low-Medium
 - **Implementation time:** 10 minutes
 - **Testing time:** 1-2 hours
@@ -164,18 +185,24 @@ Combine low-risk and medium-risk changes without retraining:
 From serial output logs:
 
 ```
-Detection Complete → Traffic State Change: ~5-20ms (queue + task switching)
-Siren Start → First "SIREN DETECTED" log: ~1.0-1.6 seconds
-Full 5-frame vote → Lane change: Additional ~300-500ms after first detection
+Detection Complete → Traffic State Change: ~5-20ms (queue + task switching)  MEASURED
+Per-frame compute: ~20 ms                                                  MEASURED
+Acoustic context: 1.04 s                                                    DERIVED
+Consensus wait: 1.04 - 4.16 s, phase-dependent                             DERIVED
 ```
+
+The first two lines are the reliable ones. The last two follow from the code constants but
+have **not** been re-captured on the current 4-window build.
 
 ### Worst Case
 
-Environmental noise triggers multiple weak detections, requiring full 5-frame voting window to accumulate. Total latency approaches 1.6+ seconds before LED changes.
+The siren starts just after a vote-window boundary, so a full 4-frame window must elapse
+before consensus is declared: up to ~4.16 s of consensus wait on top of the 1.04 s context.
 
 ### Best Case
 
-Strong siren with continuous high-confidence frames allows earlier voting completion. Latency can drop to ~1.2 seconds if votes accumulate quickly.
+The siren is already sounding as the window fills, so three of four frames agree and the
+verdict lands at the first boundary: as little as ~1.04 s of consensus wait.
 
 ---
 
@@ -271,10 +298,14 @@ After any changes, monitor these metrics:
 
 ## Conclusion
 
-The current 1.0-1.6 second latency is primarily driven by the acoustic buffering requirement (1.04s) and voting consensus (300-500ms). Both are design trade-offs for accuracy and robustness.
+Response time is primarily driven by the acoustic buffering requirement (1.04 s) and the
+voting consensus wait (1.04-4.16 s, phase-dependent). Both are design trade-offs for accuracy
+and robustness, and neither is a compute problem: the actual per-frame work is ~20 ms.
 
-**Quick win available:** Reduce voting window from 5→3 frames for ~25% latency improvement with low risk.
+**Quick win available:** Reduce the voting window from 4→3 frames, saving up to one frame
+(~1.04 s) of consensus wait, at the cost of a looser 2-of-3 vote.
 
-**Major improvement requires:** Model retraining with smaller buffer for ~50% latency reduction but higher complexity.
+**Major improvement requires:** Model retraining with a smaller buffer for ~50% latency
+reduction but higher complexity.
 
 **Recommendation:** Start with Phase 1 optimization (voting reduction) and evaluate real-world impact before committing to Phase 2 (model retraining).

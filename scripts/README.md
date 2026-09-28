@@ -333,7 +333,7 @@ I (xxx) traffic_ctrl: Normal cycle: LANE_RIGHT now GREEN
 
 **Emergency Detection:**
 ```
-W (xxx) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [5/5]
+W (xxx) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [3/4]
 I (xxx) traffic_ctrl: 🚨 Siren detected: LANE_RIGHT (confidence: 0.98)
 I (xxx) traffic_ctrl: Entering CLEARANCE mode: 2s all-red before emergency LANE_RIGHT
 I (xxx) traffic_ctrl: Entering EMERGENCY mode: LANE_RIGHT GREEN (emergency vehicle)

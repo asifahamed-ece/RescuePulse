@@ -46,7 +46,7 @@ The firmware utilizes both Xtensa LX7 cores to ensure zero sample drops during n
 │      ├── 4. MFCC Feature Extraction on the louder channel (ESP-DSP)│
 │      ├── 5. INT8 Affine Quantization                               │
 │      ├── 6. TFLite Micro Inference (1D CNN)                        │
-│      └── 7. 5-Window Debounced Majority Vote                       │
+│      └── 7. 4-Window Debounced Majority Vote (3 of 4)            │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -102,11 +102,18 @@ To preserve classification accuracy even when the siren is strongly offset to on
 2. The channel with higher RMS volume is routed into `mfcc_extract_block()`.
 
 ### 4. Deterministic Memory Footprint
-- Model weights (`g_model_data[]` ~108 KB) are mapped to **Flash RoData** (`.flash.rodata`).
+- Model weights (`g_model_data[]`, 108,392 B) are linked as a read-only `const`
+  array and mapped from **internal flash**. (Note: `CONFIG_SPIRAM_RODATA` is not
+  enabled in this project, so the code-enforced section is the standard app
+  `.rodata`, not a section literally named `.flash.rodata`.)
 - All internal buffers are statically allocated at link time:
-  - SRAM Utilization: **76.4% (250 KB / 328 KB)**.
-  - Headroom: **$>77\text{ KB}$ internal SRAM free**.
-  - PSRAM: **8 MB Octal PSRAM** hosting the 200 KB TFLite tensor arena.
+  - Internal SRAM: ~266 KB of static buffers (`s_audio_buf` 133,120 B; `s_y` 66,560 B;
+    `s_db` 10,240 B; `s_framebuffer` 32,768 B; plus the rest) plus ~32 KB of FreeRTOS stacks.
+  - Run `pio run -t size` on your own build for the authoritative `.bss`/`.data` totals —
+    the earlier "76.4%" figure was carried over from a previous revision and does not
+    match the current source.
+  - PSRAM: **8 MB Octal PSRAM** hosting the 204,800 B TFLite tensor arena — the only
+    dynamic allocation in the audio path.
 
 ---
 

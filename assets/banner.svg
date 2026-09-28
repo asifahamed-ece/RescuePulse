@@ -1,0 +1,99 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 asifahamed-ece -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 180" width="800" height="180"
+     role="img" aria-labelledby="bn-title bn-desc">
+  <title id="bn-title">RescuePulse edge-AI emergency siren detection</title>
+  <desc id="bn-desc">Animated RescuePulse banner in which the RESCUEPULSE wordmark wipes open from the left in a cyan-to-blue gradient above a two-tone emergency siren wail trace that draws itself across three rising-and-falling sweep cycles, while a cyan highlight sweeps the top bar, a green status dot pulses once per loop, and the LEFT, CENTER and RIGHT lane markers light in sequence beside the line ESP32-S3, 16 kHz stereo, zero cloud.</desc>
+
+  <defs>
+    <linearGradient id="bn-word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#39c5cf"/>
+      <stop offset="1" stop-color="#58a6ff"/>
+    </linearGradient>
+
+    <!-- Two-tone wail: one tone per rising flank, the other per falling flank. -->
+    <linearGradient id="bn-wail" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#39c5cf"/>
+      <stop offset="0.1334" stop-color="#58a6ff"/>
+      <stop offset="0.3334" stop-color="#39c5cf"/>
+      <stop offset="0.4668" stop-color="#58a6ff"/>
+      <stop offset="0.6666" stop-color="#39c5cf"/>
+      <stop offset="0.8" stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#39c5cf"/>
+    </linearGradient>
+
+    <!-- Static width is fully open, so a renderer that ignores SMIL shows the
+         complete wordmark. -->
+    <clipPath id="bn-wipe">
+      <rect x="40" y="40" width="610" height="48">
+        <animate attributeName="width" values="610;0;610;610"
+                 keyTimes="0;0.14;0.72;1" dur="6s" repeatCount="indefinite"/>
+      </rect>
+    </clipPath>
+  </defs>
+
+  <rect width="800" height="180" fill="#0d1117"/>
+
+  <!-- Top accent bar with a sweeping highlight -->
+  <rect x="0" y="0" width="800" height="3" fill="#21262d"/>
+  <rect x="0" y="0" width="150" height="3" fill="url(#bn-word)">
+    <animateTransform attributeName="transform" type="translate"
+                      from="0 0" to="650 0" dur="6s" repeatCount="indefinite"/>
+  </rect>
+
+  <g clip-path="url(#bn-wipe)">
+    <text x="40" y="82" font-family="ui-monospace, monospace" font-size="54"
+          font-weight="700" letter-spacing="22" fill="url(#bn-word)">RESCUEPULSE</text>
+  </g>
+
+  <text x="43" y="106" font-family="ui-monospace, monospace" font-size="10.5"
+        letter-spacing="3" fill="#7d8590">REAL-TIME EDGE AI SIREN DETECTION · DIRECTION OF ARRIVAL</text>
+
+  <!-- Siren wail: three cycles, each a fast rise to the peak then a slower
+       fall to the trough. Dash length is an explicit user-unit value larger
+       than the path, because pathLength is ignored by librsvg. Static
+       dashoffset 0 means fully drawn in the fallback. -->
+  <path d="M40 154 C92.7 154 82.8 114 135.5 114 C214.6 114 199.6 154 278.7 154
+           C331.4 154 321.5 114 374.2 114 C453.2 114 438.3 154 517.3 154
+           C570 154 560.1 114 612.8 114 C691.9 114 676.9 154 756 154"
+        fill="none" stroke="url(#bn-wail)" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" stroke-dasharray="1000" stroke-dashoffset="0">
+    <animate attributeName="stroke-dashoffset" values="1000;1000;0;0;1000;1000"
+             keyTimes="0;0.06;0.3;0.8;0.96;1" dur="6s" repeatCount="indefinite"/>
+    <animate attributeName="stroke-opacity" values="1;1;0.3;1;1"
+             keyTimes="0;0.4;0.5;0.6;1" dur="6s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- Status dot -->
+  <circle cx="44" cy="166.5" r="3.5" fill="#2ea043">
+    <animate attributeName="r" values="3.5;3.5;4.6;3.5" keyTimes="0;0.72;0.83;1"
+             dur="6s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="58" y="170" font-family="ui-monospace, monospace" font-size="10"
+        letter-spacing="1.6" fill="#7d8590">ESP32-S3 · 16 kHz STEREO · ZERO CLOUD</text>
+
+  <!-- Lane markers. No static opacity attribute, so a renderer without SMIL
+       shows all three present. Each snaps up on a duplicated keyTime and
+       fades back to the idle level, the highlight travelling LEFT to RIGHT. -->
+  <g fill="#21262d" stroke="#39c5cf" stroke-width="1.2">
+    <rect x="592" y="160" width="13" height="13" rx="2">
+      <animate attributeName="opacity" values="0.18;0.18;1;1;0.18;0.18"
+               keyTimes="0;0.06;0.06;0.28;0.32;1" dur="6s" repeatCount="indefinite"/>
+    </rect>
+    <circle cx="658.5" cy="166.5" r="6.5">
+      <animate attributeName="opacity" values="0.18;0.18;1;1;0.18;0.18"
+               keyTimes="0;0.28;0.28;0.5;0.54;1" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <path d="M718.5 160 L725 173 L712 173 Z">
+      <animate attributeName="opacity" values="0.18;0.18;1;1;0.18;0.18"
+               keyTimes="0;0.5;0.5;0.72;0.76;1" dur="6s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <g font-family="ui-monospace, monospace" font-size="7" letter-spacing="0.8" fill="#e6edf3">
+    <text x="610" y="170">LEFT</text>
+    <text x="670" y="170">CENTER</text>
+    <text x="730" y="170">RIGHT</text>
+  </g>
+</svg>

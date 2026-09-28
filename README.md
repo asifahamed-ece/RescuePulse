@@ -19,7 +19,7 @@
 
 RescuePulse is a high-performance, real-time edge computing system deployed on the ESP32-S3 microcontroller. It utilizes an on-device quantized Deep Neural Network (DNN) and a dual-microphone MEMS array to accurately detect emergency vehicle sirens (ambulances, fire engines, police) and determine their directional origin (LEFT, RIGHT, or CENTER) before the vehicle is visually in range.
 
-The entire audio preprocessing, feature extraction, Time Difference of Arrival (TDOA) correlation, and neural network inference execute locally on-chip in real time with zero cloud dependency and sub-15 ms latency per evaluation frame.
+The entire audio preprocessing, feature extraction, Time Difference of Arrival (TDOA) correlation, and neural network inference execute locally on-chip in real time with zero cloud dependency. Per-frame compute is ~18 ms (MFCC 3.3–3.4 ms measured, plus INT8 TFLite inference); the end-to-end response is dominated by the 1.04 s acoustic context and the consensus window rather than by computation.
 
 ---
 
@@ -27,11 +27,10 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
 ## System Pipeline Visualization
 
 <div align="center">
-  <img src="assets/gifs/pipeline.gif" alt="RescuePulse System Pipeline" width="800"/>
-  <br>
-  <em>Complete system execution flow from audio capture through acoustic detection to traffic control</em>
+  <img src="assets/banner.svg" alt="Animated RescuePulse banner: the RESCUEPULSE wordmark wipes open from the left in a cyan-to-blue gradient above a two-tone emergency siren wail trace that draws itself across three rising-and-falling sweep cycles, while a cyan highlight sweeps the top bar, a green status dot pulses once per loop, and the LEFT, CENTER and RIGHT lane markers light in sequence beside the line ESP32-S3, 16 kHz stereo, zero cloud." width="820"/>
 </div>
 
+---
 
 ---
 
@@ -43,14 +42,27 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
 - **Full INT8 Quantization:** 108 KB quantized TensorFlow Lite for Microcontrollers model running without accuracy loss compared to the FP32 baseline.
 - **Dual-Core FreeRTOS Pipeline:** Core 0 is dedicated to lossless stereo I2S DMA capture; Core 1 executes feature extraction, TDOA correlation, and TFLite inference.
 - **Deterministic Memory Architecture:** Zero dynamic allocations (`malloc`) inside FreeRTOS task execution loops; uses static ping-pong buffers and Flash-mapped model data.
-- **Noise and Silence Gating:** Dynamic AC RMS thresholding prevents false triggers during quiet or ambient background intervals.
-- **Debounced Majority Voting:** 5-window rolling majority vote with high confidence gating (>= 75%) eliminates transient false positives.
+- **Noise and Silence Gating:** Dynamic AC RMS thresholding (`RMS_THRESHOLD 0.02`) prevents false triggers during quiet or ambient background intervals.
+- **Debounced Majority Voting:** 4-window rolling majority vote with high confidence gating (≥ 3 of 4 windows at ≥ 75% confidence) eliminates transient false positives.
+
+> **Where the time goes.** Compute per frame is small — MFCC ~3.3–3.4 ms plus ~15 ms of INT8
+> inference. The end-to-end response is dominated by two deliberate design choices, not by compute:
+> the 1.04 s acoustic context (`16640 / 16000`) and the consensus window, which needs three
+> agreeing frames before it will fire. See [`LATENCY_ANALYSIS.md`](LATENCY_ANALYSIS.md) for the
+> full breakdown and the optimisation options.
 
 ---
 
 ## System Architecture
 
-```
+![Animated three-lane architecture of the RescuePulse ESP32-S3 firmware: a stage rail across the top tracks MIC, I2S, DEINT, BUF, TDOA, MFCC, INT8, CNN and VOTE while a marker sweeps them. On core zero an audio capture task at priority five streams two INMP441 microphones into a 16 kilohertz I2S peripheral, de-interleaves the 32-bit slots, and fills a 133 kilobyte ping-pong buffer whose write head alternates every 1.04 seconds, with pulse rings on the capsules and scrolling traces. On core one an inference task at priority four meters AC RMS, gates on a 0.02 noise floor, estimates direction of arrival from a cross-correlation, extracts 13 MFCC coefficients, quantises to int8, runs a 108 kilobyte TFLite Micro network, and confirms a siren with a three-of-four majority vote. The verdict travels by queue to a traffic control task driving nine neon lamps and to a display task painting a 128 by 128 panel.](assets/architecture.svg)
+
+*Dual-core execution path: capture on core 0, inference and traffic control on core 1. Nothing leaves the chip.*
+
+<details>
+<summary>Plain-text architecture diagram</summary>
+
+```text
                                   ESP32-S3 System Pipeline
   ┌────────────────────────────────────────────────────────────────────────────────────────┐
   │                                                                                        │
@@ -69,7 +81,7 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
   │                                 │                                       ▼              │
   │                                 └───────────────┬───────────────────────┘              │
   │                                                 ▼                                      │
-  │                                   5-Window Rolling Majority Vote                       │
+  │                                   4-Window Rolling Majority Vote (3 of 4)             │
   │                                                 │                                      │
   │                                                 ▼                                      │
   │                                   🚨 SIREN DETECTED [LEFT/RIGHT]                       │
@@ -90,11 +102,19 @@ The entire audio preprocessing, feature extraction, Time Difference of Arrival (
   │                                                                                        │
   └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+</details>
 ---
 
 ## Live Hardware Execution Logs
 
 Below is a serial capture from an ESP32-S3 running live dual-microphone inference in real time:
+
+> **This capture predates the current vote window.** The `[n/5]` counters and the ~5.2 s spacing
+> between lines are from a build with `VOTE_WINDOWS 5`. The firmware in this repository now uses
+> `VOTE_WINDOWS 4` / `VOTE_THRESH 3` (`src/main.c`), so a current build logs `[n/4]`. The
+> confidence values, RMS levels and `Lag` readings below are unaffected and remain the source of
+> the values used in the diagrams. Re-capture this log on your hardware to refresh it.
 
 ```text
 I (1410146) rescuepulse: 🔇 Background Noise [0/5] (Conf: 0.91) [RMS L:0.028 R:0.031]
@@ -117,7 +137,6 @@ I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R
 *<small> Left: System boot screen showing startup status and initialization.  
   
 Right: Traffic noise demonstration showing real-time siren detection and direction of arrival.</small>*
-</div>
 
 #### Direction of Arrival Visualization
 <div align="center">
@@ -186,6 +205,9 @@ The I2S peripheral captures 32-bit interleaved stereo slots at 16,000 Hz. The ca
 - Right Channel (Mic 2): Odd slot index, arithmetic right-shifted `>> 16`.
 
 ### 2. Time Difference of Arrival (TDOA)
+
+![Animated direction-of-arrival explainer in three neon zones: a top-down scene of two microphones and a siren source, a sixty-five bin cross-correlation histogram with a highlighted plus-or-minus-two dead zone, and a verdict card. On a twelve second loop the wavefronts arrive from the left, then head on, then from the right; the correlation peak snaps to bin 28, bin 31 and then bin 37; the wavefront rings pulse outward; and the verdict chip steps through amber source left, green source centre and red source right.](assets/tdoa-doa.svg)
+
 Sound propagation delay $\Delta t$ between the two microphones separated by distance $d$ is estimated by computing normalized cross-correlation:
 
 $$R_{LR}(\tau) = \sum_{n} x_L[n + \tau] \cdot x_R[n]$$
@@ -210,26 +232,42 @@ Inference is executed on the channel with higher RMS volume:
 ## Neural Network & Quantization
 
 ### Model Architecture (1D CNN)
-```
+
+![Animated feature pipeline and network: six neon cards take raw PCM through pre-emphasis, framing into sixty-four windows, a short-time Fourier transform, a forty filter mel bank with log power and a discrete cosine transform, and int8 quantisation. Below, an activation sweeps left to right through a one-dimensional convolutional network, lighting each layer as it passes: the sixty-four by thirteen input spectrogram, the sixty-four and one hundred and twenty eight filter banks, global average pooling collapsing the time axis, the dense node grid and the two output nodes. The NOISE and SIREN output bars then step through confidences logged from the real device.](assets/mfcc-cnn.svg)
+
+<details>
+<summary>Plain-text model architecture</summary>
+
+```text
 Input: (64, 13) MFCC Spectrogram
   │
-  ├──► Conv1D (64 filters, kernel=3, padding='same') + BatchNorm + ReLU + MaxPool(2)
-  ├──► Conv1D (128 filters, kernel=3, padding='same') + BatchNorm + ReLU + MaxPool(2)
-  ├──► Conv1D (128 filters, kernel=3, padding='same') + BatchNorm + ReLU + Dropout(0.3)
-  ├──► GlobalAveragePooling1D
-  ├──► Dense (64 units) + ReLU + Dropout(0.3)
-  └──► Dense (2 units, Softmax) -> [Noise, Siren]
+  ├──► Conv1D (64 filters, kernel=3, padding='same')  -> (64, 64)   + BatchNorm + ReLU + MaxPool(2)  -> (32, 64)
+  ├──► Conv1D (128 filters, kernel=3, padding='same') -> (32, 128) + BatchNorm + ReLU + MaxPool(2)  -> (16, 128)
+  ├──► Conv1D (128 filters, kernel=3, padding='same') -> (16, 128) + BatchNorm + ReLU + Dropout(0.3)
+  ├──► GlobalAveragePooling1D                                        -> (128,)
+  ├──► Dense (64 units) + ReLU + Dropout(0.3)                        -> (64,)
+  └──► Dense (2 units, Softmax) -> [Noise, Siren]                   -> (2,)
 ```
+
+*Shapes are `(time_steps, features)`, matching the Keras `model.summary()` capture in the
+[Assets Gallery](#assets-gallery). Class index `0 = Noise`, `1 = Siren`.*
+
+</details>
 
 ### Quantization & Memory Budget
 - **Model Type:** TensorFlow Lite INT8 (Full Integer Post-Training Quantization).
-- **Model Flash Size:** 108,392 bytes (placed in `.flash.rodata`).
+- **Model Flash Size:** 108,392 bytes, linked as a read-only `const` array in `model_data.cc` and mapped from flash.
 - **RAM Footprint:**
   - `s_audio_buf` (Ping-Pong Stereo): 133,120 bytes.
-  - TDOA / MFCC Static Buffers: ~18 KB.
-  - Stack Allocations: 20 KB total across Core 0 and Core 1.
-  - Total Internal DRAM Utilization: **76.4% (250 KB / 328 KB)**, leaving $>77\text{ KB}$ headroom.
-  - TFLite Tensor Arena: 200 KB allocated in external Octal PSRAM (8 MB total).
+  - TDOA / MFCC Static Buffers: ~86 KB (`s_y` 66,560 · `s_db` 10,240 · `s_fft` 4,096 · `s_power` 1,028 · `s_mel` 160).
+  - ST7735S framebuffer: 32,768 bytes. I2S staging scratch: 4,096 bytes.
+  - FreeRTOS stacks: 32,256 bytes total across the four tasks and the main task.
+  - TFLite Tensor Arena: 204,800 bytes allocated in external Octal PSRAM (8 MB total) — the **only** dynamic allocation in the audio path.
+
+> **Note on the earlier "76.4% DRAM" figure.** That number was carried over from an earlier revision and
+> does not match the current source. The breakdown above is derived directly from the `static`
+> allocations in `src/`. For the authoritative figure on your own build, run `pio run -t size`
+> and read the `.bss`/`.data` totals from the map output.
 
 ---
 
@@ -264,30 +302,31 @@ RescuePulse/
 
 ### Assets Gallery
 
-The `assets/` directory contains comprehensive visual documentation of the RescuePulse system in action:
+Bench captures of the working prototype, and the trained-model summary.
 
-- **Boot Display**: System initialization and startup sequence
-- **Direction of Arrival**: Real-time siren detection from Left, Right, and Center positions
-- **Live System Output**: Traffic noise demonstration showing multi-source detection
-- **Model Prediction Tests**: Classification visualizations and activation patterns
+**Traffic light response to each detected direction**
 
-These images provide concrete visual evidence of the system's real-time edge AI capabilities and user-facing interface.
+<div align="center">
+  <img src="assets/Left_detection.jpg" alt="Left lane held green" width="300"/>
+  <img src="assets/Center_detection.jpg" alt="Center lane held green" width="300"/>
+  <img src="assets/Right_detect.jpg" alt="Right lane traffic light responding" width="300"/>
+</div>
+*<small>Bench verification: a siren detected on the left, centre and right lane respectively, with the
+nine-lamp GPIO array and the ST7735S panel responding and a multimeter on the lamp rail.</small>*
 
-## Live Hardware Execution Logs
+**Normal-mode startup and trained model summary**
 
-Below is a serial capture from an ESP32-S3 running live dual-microphone inference in real time:
+<div align="center">
+  <img src="assets/traffic_init.jpg" alt="Normal mode traffic cycle" width="300"/>
+  <img src="assets/Train-RescuePulse.png" alt="Keras model summary" width="380"/>
+</div>
+*<small>Left: the controller in `MODE_NORMAL` at boot, cycling the lanes. Right: the Keras summary
+printed by `scripts/train_model.py`, listing each layer's output shape and parameter count — the
+source of the tensor shapes shown in the CNN diagram above.</small>*
 
-```text
-I (1410146) rescuepulse: 🔇 Background Noise [0/5] (Conf: 0.91) [RMS L:0.028 R:0.031]
-W (1415336) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.99) [3/5] [RMS L:0.087 R:0.043, Lag: -4, MaxPCM: 9100]
-W (1420546) rescuepulse: 🚨 SIREN DETECTED [LEFT] (Conf: 0.88) [4/5] [RMS L:0.082 R:0.047, Lag: -4, MaxPCM: 8092]
-W (1425746) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 1.00) [5/5] [RMS L:0.091 R:0.165, Lag: 5, MaxPCM: 15097]
-W (1430936) rescuepulse: 🚨 SIREN DETECTED [RIGHT] (Conf: 0.98) [5/5] [RMS L:0.066 R:0.090, Lag: 5, MaxPCM: 9646]
-W (1436146) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.97) [5/5] [RMS L:0.083 R:0.060, Lag: -1, MaxPCM: 11096]
-W (1441346) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.98) [5/5] [RMS L:0.094 R:0.064, Lag: -1, MaxPCM: 10679]
-W (1446536) rescuepulse: 🚨 SIREN DETECTED [CENTER] (Conf: 0.84) [5/5] [RMS L:0.041 R:0.042, Lag: 0, MaxPCM: 6456]
-I (1451746) rescuepulse: 🔇 Background Noise [1/5] (Conf: 0.93) [RMS L:0.037 R:0.040]
-```
+Board reference: [`assets/ESP32-S3-WROOM-N16R8-Pinout.pdf`](assets/ESP32-S3-WROOM-N16R8-Pinout.pdf)
+(one page, module pinout used to validate the GPIO assignments in this README).
+
 ---
 
 ## Phase 2: Emergency Vehicle Priority Traffic Light Control
@@ -348,6 +387,11 @@ All pins are configured as digital outputs with no pull resistors. Drive strengt
 
 ### State Machine Transitions
 
+![Animated traffic state machine: a three-lane lamp array on the left steps through eight seconds of green, two seconds of yellow and two seconds of all-red clearance, then holds the right lane green in emergency mode while the centre mode card highlights in turn; a dashed fast path shows the clearance being skipped, and a timeline strip marks every phase against its real duration.](assets/traffic-fsm.svg)
+
+<details>
+<summary>Plain-text state machine diagram</summary>
+
 ```
 ┌──────────────┐
 │ MODE_NORMAL  │◄─────────────────────────────┐
@@ -373,6 +417,8 @@ All pins are configured as digital outputs with no pull resistors. Drive strengt
 │  RED)            │
 └──────────────────┘
 ```
+
+</details>
 
 ### Optimization Features
 
@@ -437,22 +483,13 @@ I (xxx) rescuepulse: Noise Inference: Predicted 0 (Expected 0) - PASS [scores 0.
 
 ## License
 
-This project is licensed under the Apache 2.0 License.
+This project is licensed under the Apache 2.0 License. See [`LICENSE`](LICENSE).
 
 ---
 
 ## Prototype: RescuePulse
 
 This repository contains the prototype implementation of the RescuePulse system, featuring real-time emergency vehicle siren detection with Direction of Arrival (DoA) estimation and intelligent traffic light control. The prototype demonstrates the complete edge AI pipeline from acoustic sensing through neural network inference to dynamic traffic management.
-
-### Prototype Highlights
-
-- **Complete Edge Deployment:** Fully self-contained system operating on ESP32-S3 microcontroller
-- **Real-Time Processing:** Sub-15ms latency for siren detection and DoA estimation
-- **Dual-Microphone Array:** Hardware-synchronized I2S capture for accurate TDOA calculation
-- **INT8 Quantized Model:** 108KB TensorFlow Lite model with no accuracy loss vs FP32 baseline
-- **Dynamic Traffic Control:** Three-state traffic light system with emergency vehicle prioritization
-- **Zero Cloud Dependency:** All processing occurs locally on-device
 
 ### Prototype Components
 
@@ -474,23 +511,7 @@ This repository contains the prototype implementation of the RescuePulse system,
    - Ping-pong buffers for continuous audio capture
    - External PSRAM for tensor arena storage
 
-### Getting Started with the Prototype
-
-To build and deploy the RescuePulse prototype:
-
-```bash
-# Navigate to the firmware workspace
-cd Rescue_Pulse_PIO
-
-# Clean and compile firmware
-pio run -t clean && pio run
-
-# Flash to the connected ESP32-S3
-pio run -t upload
-
-# Open the serial monitor at 115200 baud
-pio device monitor -b 115200
-```
+Build and flash instructions are in [Build and Deployment](#build-and-deployment) above.
 
 The prototype outputs real-time detection logs showing siren detection events with direction (LEFT/RIGHT/CENTER) and confidence scores, demonstrating the complete acoustic-to-control pipeline.
 

@@ -1,0 +1,317 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 asifahamed-ece -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" width="960" height="470"
+     role="img" aria-labelledby="td-title td-desc">
+  <title id="td-title">RescuePulse TDOA direction-of-arrival estimate</title>
+  <desc id="td-desc">Three neon zones explain how RescuePulse decides where a siren is. On the left a top-down scene shows two microphones on a bar with a siren source and expanding wavefronts. In the centre a sixty-five bin cross-correlation histogram shows the delay peak with a shaded plus-or-minus-two dead zone at zero. On the right a verdict card states the decision rule. Over twelve seconds the wavefronts arrive from the left, then head on, then from the right; the correlation peak snaps between bin 28, bin 31 and bin 37; the rings pulse outward; and the verdict chip steps through amber source left, green source centre and red source right.</desc>
+
+  <defs>
+    <pattern id="g" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0 L0 0 0 32" fill="none" stroke="#ffffff" stroke-opacity="0.055" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow" cx="24%" cy="16%" r="60%">
+      <stop offset="0%" stop-color="LIME" stop-opacity="0.15"/>
+      <stop offset="55%" stop-color="LIME" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="LIME" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="LIME"/>
+      <stop offset="100%" stop-color="#58a6ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="470" fill="#0d1117"/>
+  <rect width="960" height="470" fill="url(#g)"/>
+  <rect width="960" height="470" fill="url(#glow)"/>
+
+  <text x="24" y="30" font-family="ui-monospace, monospace" font-size="15" font-weight="700" letter-spacing="2.4" fill="url(#brand)">RESCUEPULSE</text>
+  <text x="196.0" y="30.0" font-family="ui-monospace, monospace" font-size="9" fill="#7ee787" text-anchor="start" font-weight="700" letter-spacing="1.4">TDOA / DIRECTION OF ARRIVAL</text>
+  <text x="24.0" y="48.0" font-family="ui-monospace, monospace" font-size="7" fill="#7d8590" text-anchor="start" letter-spacing="0.8">ESP-DSP dsps_corr_f32 &#183; 65 LAG BINS &#183; &#177;32 SAMPLES @ 16 kHz &#183; DEAD ZONE &#177;2</text>
+  <rect x="810" y="16" width="126" height="18" rx="9" fill="none" stroke="#7ee787" stroke-width="1.2"/>
+  <circle cx="826" cy="25" r="3" fill="#7ee787">
+    <animate attributeName="r" values="3;3;4.2;3" keyTimes="0;0.7;0.82;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="836.0" y="28.0" font-family="ui-monospace, monospace" font-size="6" fill="#7ee787" text-anchor="start" font-weight="700" letter-spacing="0.6">LOOP 12 s</text>
+  <line x1="150" y1="78" x2="810" y2="78" stroke="#21262d" stroke-width="2"/>
+  <line x1="150" y1="78" x2="810" y2="78" stroke="#39c5cf" stroke-width="2" stroke-dasharray="1000" stroke-dashoffset="0" stroke-opacity="0.7">
+    <animate attributeName="stroke-dashoffset" values="1000;1000;0;0;1000;1000" keyTimes="0;0.02;0.58;0.94;0.98;1" dur="12s" repeatCount="indefinite"/>
+  </line>
+  <circle cx="150.0" cy="78" r="4" fill="#39c5cf"/>
+  <circle cx="150.0" cy="78" r="8" fill="none" stroke="#39c5cf" stroke-width="1" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.8;0.8;0;0" keyTimes="0;0.03;0.0795;0.1390;0.1400;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="150.0" y="96.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#39c5cf" text-anchor="middle" font-weight="700" letter-spacing="0.3">WAVEFRONTS</text>
+  <circle cx="315.0" cy="78" r="4" fill="#39c5cf"/>
+  <circle cx="315.0" cy="78" r="8" fill="none" stroke="#39c5cf" stroke-width="1" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.8;0.8;0;0" keyTimes="0;0.14;0.1895;0.2490;0.2500;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="315.0" y="96.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#39c5cf" text-anchor="middle" font-weight="700" letter-spacing="0.3">DE-INTERLEAVE</text>
+  <circle cx="480.0" cy="78" r="4" fill="#7ee787"/>
+  <circle cx="480.0" cy="78" r="8" fill="none" stroke="#7ee787" stroke-width="1" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.8;0.8;0;0" keyTimes="0;0.25;0.2995;0.3590;0.3600;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="480.0" y="96.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7ee787" text-anchor="middle" font-weight="700" letter-spacing="0.3">CORRELATE</text>
+  <circle cx="645.0" cy="78" r="4" fill="#7ee787"/>
+  <circle cx="645.0" cy="78" r="8" fill="none" stroke="#7ee787" stroke-width="1" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.8;0.8;0;0" keyTimes="0;0.36;0.4095;0.4690;0.4700;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="645.0" y="96.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7ee787" text-anchor="middle" font-weight="700" letter-spacing="0.3">PEAK PICK</text>
+  <circle cx="810.0" cy="78" r="4" fill="#ff2d2d"/>
+  <circle cx="810.0" cy="78" r="8" fill="none" stroke="#ff2d2d" stroke-width="1" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.8;0.8;0;0" keyTimes="0;0.47;0.5195;0.5790;0.5800;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="810.0" y="96.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#ff2d2d" text-anchor="middle" font-weight="700" letter-spacing="0.3">VERDICT</text>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.03;0.03;0.58;0.58;1" dur="12s" repeatCount="indefinite"/>
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0;0 0;660 0;660 0;0 0;0 0" keyTimes="0;0.03;0.58;0.94;0.98;1" dur="12s" repeatCount="indefinite"/>
+      <path d="M144 72 L153 78 L144 84 Z" fill="#39c5cf"/>
+    </g>
+  </g>
+  <!-- ======================= ZONE A / ACOUSTIC SCENE ======================= -->
+  <rect x="18.0" y="98.0" width="244" height="312" rx="10" fill="none" stroke="#39c5cf" stroke-width="5" stroke-opacity="0.07"/>
+  <rect x="21.5" y="101.5" width="237" height="305" rx="8" fill="none" stroke="#39c5cf" stroke-width="2.5" stroke-opacity="0.18"/>
+  <rect x="24.0" y="104.0" width="232.0" height="300.0" rx="6" fill="#161b22" stroke="#39c5cf" stroke-width="1.2"/>
+  <text x="36.0" y="124.0" font-family="ui-monospace, monospace" font-size="6.5" fill="#39c5cf" text-anchor="start" font-weight="700" letter-spacing="0.4">A &#183; ACOUSTIC SCENE</text>
+  <line x1="36.0" y1="131.0" x2="244.0" y2="131.0" stroke="#39c5cf" stroke-width="0.8" stroke-opacity="0.35"/>
+  <line x1="46" y1="254" x2="234" y2="254" stroke="#21262d" stroke-width="1"/>
+  <circle cx="82" cy="254" r="10" fill="#0d1117" stroke="#d29922" stroke-width="1.2" stroke-opacity="0.5"/>
+  <circle cx="82" cy="254" r="4" fill="#d29922" opacity="1">
+    <animate attributeName="opacity" values="1;1;0;0;0;0;1;1" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="82" cy="254" r="10" fill="none" stroke="#d29922" stroke-width="1" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.5;0;0.5;0;0.5;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="10;10;22;10;22;10;22;10" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="82.0" y="280.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="middle">MIC LEFT</text>
+  <circle cx="192" cy="254" r="10" fill="#0d1117" stroke="#7ee787" stroke-width="1.2" stroke-opacity="0.5"/>
+  <circle cx="192" cy="254" r="4" fill="#7ee787" opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;1;1;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="192" cy="254" r="10" fill="none" stroke="#7ee787" stroke-width="1" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.5;0;0.5;0;0.5;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="10;10;22;10;22;10;22;10" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <text x="192.0" y="280.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="middle">MIC RIGHT</text>
+  <line x1="136" y1="214" x2="136" y2="276" stroke="#21262d" stroke-width="1"/>
+  <g opacity="1">
+    <animate attributeName="opacity" values="1;1;0;0;0;0;1;1" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <text x="90.0" y="202.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#d29922" text-anchor="middle" font-weight="700" letter-spacing="0.4">SIREN</text>
+  <circle cx="90" cy="214" r="2.5" fill="#d29922"/>
+  <circle cx="90" cy="214" r="4" fill="none" stroke="#d29922" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.85;0;0.85;0;0.85;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="4;4;22;4;22;4;22;4" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="90" cy="214" r="6" fill="none" stroke="#d29922" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.5;0;0.5;0;0.5;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="6;6;34;6;34;6;34;6" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="90" cy="214" r="8" fill="none" stroke="#d29922" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.25;0;0.25;0;0.25;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="8;8;46;8;46;8;46;8" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;1;1;0;0;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <text x="136.0" y="202.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#2ea043" text-anchor="middle" font-weight="700" letter-spacing="0.4">SIREN</text>
+  <circle cx="136" cy="214" r="2.5" fill="#2ea043"/>
+  <circle cx="136" cy="214" r="4" fill="none" stroke="#2ea043" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.85;0;0.85;0;0.85;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="4;4;22;4;22;4;22;4" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="136" cy="214" r="6" fill="none" stroke="#2ea043" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.5;0;0.5;0;0.5;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="6;6;34;6;34;6;34;6" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="136" cy="214" r="8" fill="none" stroke="#2ea043" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.25;0;0.25;0;0.25;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="8;8;46;8;46;8;46;8" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;1;1;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <text x="182.0" y="202.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#f85149" text-anchor="middle" font-weight="700" letter-spacing="0.4">SIREN</text>
+  <circle cx="182" cy="214" r="2.5" fill="#f85149"/>
+  <circle cx="182" cy="214" r="4" fill="none" stroke="#f85149" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.85;0;0.85;0;0.85;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="4;4;22;4;22;4;22;4" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="182" cy="214" r="6" fill="none" stroke="#f85149" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.5;0;0.5;0;0.5;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="6;6;34;6;34;6;34;6" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="182" cy="214" r="8" fill="none" stroke="#f85149" stroke-width="1.3" stroke-opacity="0">
+    <animate attributeName="stroke-opacity" values="0;0;0.25;0;0.25;0;0.25;0" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="r" values="8;8;46;8;46;8;46;8" keyTimes="0;0;0.2;0.3333;0.5333;0.6667;0.8667;1" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  </g>
+  <path d="M38.0,330.0 L41.6,329.0 L45.3,326.8 L48.9,326.4 L52.6,330.0 L56.2,336.2 L59.9,340.2 L63.5,337.8 L67.1,330.0 L70.8,322.5 L74.4,320.7 L78.1,324.7 L81.7,330.0 L85.4,331.8 L89.0,330.0 L92.6,328.3 L96.3,330.0 L99.9,334.2 L103.6,336.8 L107.2,335.0 L110.9,330.0 L114.5,325.8 L118.1,324.3 L121.8,325.7 L125.4,330.0 L129.1,333.8 L132.7,334.1 L136.4,331.6 L140.0,330.0 L143.6,331.8 L147.3,335.0 L150.9,335.2 L154.6,330.0 L158.2,322.4 L161.9,318.5 L165.5,321.9 L169.1,330.0 L172.8,336.7 L176.4,337.7 L180.1,334.0 L183.7,330.0 L187.4,328.8 L191.0,330.0 L194.6,330.9 L198.3,330.0 L201.9,326.8 L205.6,323.6 L209.2,324.3 L212.9,330.0 L216.5,337.4 L220.1,340.7 L223.8,337.3 L227.4,330.0 L231.1,324.7 L234.7,324.8 L238.4,328.1 L242.0,330.0" fill="none" stroke="#39c5cf" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.8"/>
+  <text x="36.0" y="350.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start">d = MIC SPACING (HARDWARE PARAM)</text>
+  <text x="36.0" y="362.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start">&#916;t = d &#183; sin&#952; / c &#183; c &#8776; 343 m/s</text>
+  <!-- =================== ZONE B / 65-BIN CORRELATION =================== -->
+  <rect x="262.0" y="98.0" width="436" height="312" rx="10" fill="none" stroke="#7ee787" stroke-width="5" stroke-opacity="0.07"/>
+  <rect x="265.5" y="101.5" width="429" height="305" rx="8" fill="none" stroke="#7ee787" stroke-width="2.5" stroke-opacity="0.18"/>
+  <rect x="268.0" y="104.0" width="424.0" height="300.0" rx="6" fill="#161b22" stroke="#7ee787" stroke-width="1.2"/>
+  <text x="280.0" y="124.0" font-family="ui-monospace, monospace" font-size="6.5" fill="#7ee787" text-anchor="start" font-weight="700" letter-spacing="0.4">B &#183; CROSS-CORRELATION &#8212; 65 LAG BINS</text>
+  <line x1="280.0" y1="131.0" x2="680.0" y2="131.0" stroke="#7ee787" stroke-width="0.8" stroke-opacity="0.35"/>
+  <rect x="468.0" y="240" width="30.0" height="78" fill="#7d8590" fill-opacity="0.16"/>
+  <line x1="468.0" y1="240" x2="468.0" y2="318" stroke="#7d8590" stroke-width="0.8" stroke-dasharray="2 2" stroke-opacity="0.55"/>
+  <line x1="492.0" y1="240" x2="492.0" y2="318" stroke="#7d8590" stroke-width="0.8" stroke-dasharray="2 2" stroke-opacity="0.55"/>
+  <text x="483.0" y="234.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="middle">&#177;2 DEAD ZONE</text>
+  <line x1="480.0" y1="226" x2="480.0" y2="318" stroke="#7ee787" stroke-width="1" stroke-dasharray="3 3" stroke-opacity="0.5"/>
+  <line x1="288" y1="318" x2="672" y2="318" stroke="#21262d" stroke-width="1.2"/>
+  <rect x="288.8" y="309.5" width="3.7" height="8.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="294.8" y="306.8" width="3.7" height="11.2" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="300.8" y="304.6" width="3.7" height="13.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="306.8" y="303.2" width="3.7" height="14.8" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="312.8" y="302.9" width="3.7" height="15.1" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="318.8" y="303.6" width="3.7" height="14.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="324.8" y="305.0" width="3.7" height="13.0" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="330.8" y="306.7" width="3.7" height="11.3" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="336.8" y="308.3" width="3.7" height="9.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="342.8" y="309.4" width="3.7" height="8.6" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="348.8" y="309.5" width="3.7" height="8.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="354.8" y="308.8" width="3.7" height="9.2" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="360.8" y="307.3" width="3.7" height="10.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="366.8" y="305.3" width="3.7" height="12.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="372.8" y="303.4" width="3.7" height="14.6" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="378.8" y="302.0" width="3.7" height="16.0" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="384.8" y="301.5" width="3.7" height="16.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="390.8" y="302.1" width="3.7" height="15.9" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="396.8" y="303.7" width="3.7" height="14.3" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="402.8" y="306.1" width="3.7" height="11.9" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="408.8" y="308.8" width="3.7" height="9.2" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="414.8" y="311.3" width="3.7" height="6.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="420.8" y="313.3" width="3.7" height="4.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="426.8" y="313.7" width="3.7" height="4.3" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="432.8" y="313.6" width="3.7" height="4.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="438.8" y="313.5" width="3.7" height="4.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="444.8" y="312.0" width="3.7" height="6.0" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="450.8" y="310.5" width="3.7" height="7.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="456.8" y="309.2" width="3.7" height="8.8" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="462.8" y="308.7" width="3.7" height="9.3" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="468.8" y="309.1" width="3.7" height="8.9" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="474.8" y="310.4" width="3.7" height="7.6" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="480.8" y="312.3" width="3.7" height="5.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="486.8" y="313.4" width="3.7" height="4.6" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="492.8" y="311.4" width="3.7" height="6.6" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="498.8" y="310.1" width="3.7" height="7.9" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="504.8" y="309.7" width="3.7" height="8.3" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="510.8" y="310.5" width="3.7" height="7.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="516.8" y="312.2" width="3.7" height="5.8" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="522.8" y="313.4" width="3.7" height="4.6" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="528.8" y="310.8" width="3.7" height="7.2" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="534.8" y="308.5" width="3.7" height="9.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="540.8" y="306.9" width="3.7" height="11.1" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="546.8" y="306.3" width="3.7" height="11.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="552.8" y="306.6" width="3.7" height="11.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="558.8" y="307.7" width="3.7" height="10.3" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="564.8" y="309.2" width="3.7" height="8.8" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="570.8" y="310.6" width="3.7" height="7.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="576.8" y="311.5" width="3.7" height="6.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="582.8" y="311.5" width="3.7" height="6.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="588.8" y="310.6" width="3.7" height="7.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="594.8" y="308.8" width="3.7" height="9.2" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="600.8" y="306.5" width="3.7" height="11.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="606.8" y="304.1" width="3.7" height="13.9" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="612.8" y="302.0" width="3.7" height="16.0" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="618.8" y="300.8" width="3.7" height="17.2" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="624.8" y="300.6" width="3.7" height="17.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="630.8" y="301.5" width="3.7" height="16.5" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="636.8" y="303.3" width="3.7" height="14.7" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="642.8" y="305.6" width="3.7" height="12.4" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="648.8" y="307.9" width="3.7" height="10.1" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="654.8" y="309.8" width="3.7" height="8.2" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="660.8" y="310.9" width="3.7" height="7.1" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="666.8" y="311.1" width="3.7" height="6.9" fill="#39c5cf" fill-opacity="0.30"/>
+  <rect x="672.8" y="310.4" width="3.7" height="7.6" fill="#39c5cf" fill-opacity="0.30"/>
+  <g opacity="1">
+    <animate attributeName="opacity" values="1;1;0;0;0;0;1;1" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <rect x="454.4" y="244" width="6.9" height="74" rx="1.5" fill="#d29922"/>
+  <rect x="451.0" y="239" width="13.7" height="5" rx="2" fill="#d29922"/>
+  <text x="457.9" y="233" font-family="ui-monospace, monospace" font-size="6.5" font-weight="700" fill="#d29922" text-anchor="middle">-4</text>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;1;1;0;0;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <rect x="472.4" y="298" width="6.9" height="20" rx="1.5" fill="#2ea043"/>
+  <rect x="469.0" y="293" width="13.7" height="5" rx="2" fill="#2ea043"/>
+  <text x="475.9" y="287" font-family="ui-monospace, monospace" font-size="6.5" font-weight="700" fill="#2ea043" text-anchor="middle">-1</text>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;1;1;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <rect x="508.4" y="298" width="6.9" height="20" rx="1.5" fill="#f85149"/>
+  <rect x="505.0" y="293" width="13.7" height="5" rx="2" fill="#f85149"/>
+  <text x="511.9" y="287" font-family="ui-monospace, monospace" font-size="6.5" font-weight="700" fill="#f85149" text-anchor="middle">+5</text>
+  </g>
+  <line x1="288.0" y1="318" x2="288.0" y2="322" stroke="#21262d" stroke-width="1"/>
+  <text x="288.0" y="332.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="middle">-32</text>
+  <line x1="480.0" y1="318" x2="480.0" y2="322" stroke="#21262d" stroke-width="1"/>
+  <text x="480.0" y="332.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="middle">0</text>
+  <line x1="672.0" y1="318" x2="672.0" y2="322" stroke="#21262d" stroke-width="1"/>
+  <text x="672.0" y="332.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="middle">+32</text>
+  <text x="480.0" y="344.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="middle" letter-spacing="0.5">LAG (SAMPLES) @ 16 kHz</text>
+  <rect x="371.0" y="352" width="26" height="12" rx="2" fill="#39c5cf" fill-opacity="0.18" stroke="#39c5cf" stroke-width="0.7" stroke-opacity="0.5"/>
+  <rect x="467.0" y="352" width="26" height="12" rx="2" fill="#39c5cf" fill-opacity="0.18" stroke="#39c5cf" stroke-width="0.7" stroke-opacity="0.5"/>
+  <rect x="563.0" y="352" width="26" height="12" rx="2" fill="#39c5cf" fill-opacity="0.18" stroke="#39c5cf" stroke-width="0.7" stroke-opacity="0.5"/>
+  <text x="288.0" y="370.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start">3 SEGMENTS AVERAGED AT 25 / 50 / 75 % OF THE BLOCK</text>
+  <line x1="288" y1="378" x2="672" y2="378" stroke="#21262d" stroke-width="1"/>
+  <text x="288" y="394" font-family="ui-monospace, monospace" font-size="8" font-weight="700" fill="#d29922" opacity="1">
+    <animate attributeName="opacity" values="1;1;0;0;0;0;1;1" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+    LAG = -4  (LEFT MIC FIRST)</text>
+  <text x="288" y="394" font-family="ui-monospace, monospace" font-size="8" font-weight="700" fill="#2ea043" opacity="0">
+    <animate attributeName="opacity" values="0;0;1;1;0;0;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+    LAG = -1  (EQUIDISTANT)</text>
+  <text x="288" y="394" font-family="ui-monospace, monospace" font-size="8" font-weight="700" fill="#f85149" opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;1;1;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+    LAG = +5  (RIGHT MIC FIRST)</text>
+  <!-- ========================== ZONE C / VERDICT ========================== -->
+  <rect x="698.0" y="98.0" width="244" height="312" rx="10" fill="none" stroke="#ff2d2d" stroke-width="5" stroke-opacity="0.07"/>
+  <rect x="701.5" y="101.5" width="237" height="305" rx="8" fill="none" stroke="#ff2d2d" stroke-width="2.5" stroke-opacity="0.18"/>
+  <rect x="704.0" y="104.0" width="232.0" height="300.0" rx="6" fill="#161b22" stroke="#ff2d2d" stroke-width="1.2"/>
+  <text x="716.0" y="124.0" font-family="ui-monospace, monospace" font-size="6.5" fill="#ff2d2d" text-anchor="start" font-weight="700" letter-spacing="0.4">C &#183; VERDICT</text>
+  <line x1="716.0" y1="131.0" x2="924.0" y2="131.0" stroke="#ff2d2d" stroke-width="0.8" stroke-opacity="0.35"/>
+  <g opacity="1">
+    <animate attributeName="opacity" values="1;1;0;0;0;0;1;1" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <rect x="720" y="144" width="200" height="30" rx="15" fill="#d29922"/>
+  <text x="820.0" y="164" font-family="ui-monospace, monospace" font-size="8" font-weight="700" letter-spacing="0.8" fill="#0d1117" text-anchor="middle">SOURCE LEFT</text>
+  <text x="820.0" y="190" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="middle">PEAK BIN 28 &#183; LAG -4</text>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;1;1;0;0;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <rect x="720" y="144" width="200" height="30" rx="15" fill="#2ea043"/>
+  <text x="820.0" y="164" font-family="ui-monospace, monospace" font-size="8" font-weight="700" letter-spacing="0.8" fill="#0d1117" text-anchor="middle">SOURCE CENTRE</text>
+  <text x="820.0" y="190" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="middle">PEAK BIN 31 &#183; LAG -1</text>
+  </g>
+  <g opacity="0">
+    <animate attributeName="opacity" values="0;0;0;0;1;1;0;0" keyTimes="0;0.25;0.25;0.5;0.5;0.75;0.75;1" dur="12s" repeatCount="indefinite"/>
+  <rect x="720" y="144" width="200" height="30" rx="15" fill="#f85149"/>
+  <text x="820.0" y="164" font-family="ui-monospace, monospace" font-size="8" font-weight="700" letter-spacing="0.8" fill="#0d1117" text-anchor="middle">SOURCE RIGHT</text>
+  <text x="820.0" y="190" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="middle">PEAK BIN 37 &#183; LAG +5</text>
+  </g>
+  <text x="720.0" y="216.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="start" font-weight="700" letter-spacing="0.5">DECISION RULE</text>
+  <line x1="720" y1="223" x2="920" y2="223" stroke="#21262d" stroke-width="1"/>
+  <text x="720.0" y="240.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="start">lag &gt; +2</text>
+  <text x="792.0" y="240.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="middle">&#8594;</text>
+  <text x="920.0" y="240.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#f85149" text-anchor="end" font-weight="700" letter-spacing="0.3">RIGHT</text>
+  <text x="720.0" y="255.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="start">lag &lt; -2</text>
+  <text x="792.0" y="255.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="middle">&#8594;</text>
+  <text x="920.0" y="255.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#d29922" text-anchor="end" font-weight="700" letter-spacing="0.3">LEFT</text>
+  <text x="720.0" y="270.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="start">|lag| &#8804; 2</text>
+  <text x="792.0" y="270.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#7d8590" text-anchor="middle">&#8594;</text>
+  <text x="920.0" y="270.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#2ea043" text-anchor="end" font-weight="700" letter-spacing="0.3">CENTRE</text>
+  <text x="720.0" y="302.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start" letter-spacing="0.4">MEASURED ON DEVICE (SERIAL LOG)</text>
+  <circle cx="724" cy="313" r="2.5" fill="#d29922"/>
+  <text x="734.0" y="316.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#d29922" text-anchor="start" font-weight="700">-4  LEFT</text>
+  <circle cx="724" cy="327" r="2.5" fill="#2ea043"/>
+  <text x="734.0" y="330.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#2ea043" text-anchor="start" font-weight="700">-1  CENTRE</text>
+  <circle cx="724" cy="341" r="2.5" fill="#f85149"/>
+  <text x="734.0" y="344.0" font-family="ui-monospace, monospace" font-size="5.5" fill="#f85149" text-anchor="start" font-weight="700">+5  RIGHT</text>
+  <line x1="24" y1="418" x2="936" y2="418" stroke="#21262d" stroke-width="1"/>
+  <text x="24.0" y="436.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start" letter-spacing="0.6">SEARCH RANGE</text>
+  <text x="24.0" y="449.0" font-family="ui-monospace, monospace" font-size="6" fill="#7ee787" text-anchor="start" font-weight="700">&#177;32 SAMPLES &#8776; 2 ms</text>
+  <text x="254.0" y="436.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start" letter-spacing="0.6">WINDOW</text>
+  <text x="254.0" y="449.0" font-family="ui-monospace, monospace" font-size="6" fill="#39c5cf" text-anchor="start" font-weight="700">1024 PATTERN / 1088 SIGNAL</text>
+  <text x="484.0" y="436.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start" letter-spacing="0.6">DEAD ZONE</text>
+  <text x="484.0" y="449.0" font-family="ui-monospace, monospace" font-size="6" fill="#d29922" text-anchor="start" font-weight="700">&#177;2 SAMPLES</text>
+  <text x="714.0" y="436.0" font-family="ui-monospace, monospace" font-size="5" fill="#7d8590" text-anchor="start" letter-spacing="0.6">DSP</text>
+  <text x="714.0" y="449.0" font-family="ui-monospace, monospace" font-size="6" fill="#2ea043" text-anchor="start" font-weight="700">dsps_corr_f32 (ESP-DSP)</text>
+</svg>
