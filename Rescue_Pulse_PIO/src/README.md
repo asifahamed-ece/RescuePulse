@@ -121,16 +121,16 @@ To preserve classification accuracy even when the siren is strongly offset to on
 
 | File | Purpose |
 |---|---|
-| [`main.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/main.c) | System orchestration, FreeRTOS tasks, TDOA direction estimation, AC RMS volume metering, majority voting, detection message generation. |
-| [`display_st7789.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/display_st7789.c) / [`display_st7789.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/display_st7789.h) | ST7789 SPI TFT display driver (240x240 RGB565) rendering live directional alerts, noise classification, and RMS bars. |
-| [`i2s_capture.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.c) / [`i2s_capture.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/i2s_capture.h) | 16 kHz 32-bit stereo I2S DMA driver, unpacking Left (Mic 1) and Right (Mic 2) PCM samples. |
-| [`mfcc.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.c) / [`mfcc.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mfcc.h) | ESP-DSP accelerated MFCC pipeline (0.97 pre-emphasis, Hamming window, 512-pt FFT, 40 Mel filters, DCT-II). |
-| [`inference.cpp`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/inference.cpp) / [`inference.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/inference.h) | C++ bridge for TensorFlow Lite for Microcontrollers, memory allocation, and interpreter invocation. |
-| [`model_data.cc`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/model_data.cc) | Flash-mapped INT8 quantized TFLite model byte array. |
-| [`model_config.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/model_config.h) | Audio constants, per-coefficient standardization parameters, and quantization affine scales. |
-| [`mel_tables.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/mel_tables.h) | Precomputed Librosa-matching Hamming window, Mel filterbank, and DCT matrix tables. |
-| [`test_vectors.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/test_vectors.h) | Pre-computed siren and noise test vectors for automated on-device mathematical parity testing. |
-| [`traffic_ctrl.c`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/traffic_ctrl.c) / [`traffic_ctrl.h`](file:///home/shadow/Projects/RescuePulse/Rescue_Pulse_PIO/src/traffic_ctrl.h) | **PHASE 2**: Emergency vehicle priority traffic light state machine, GPIO management, detection message handling, mode transitions (NORMAL/CLEARANCE/EMERGENCY). |
+| [`main.c`](./main.c) | System orchestration, FreeRTOS tasks, TDOA direction estimation, AC RMS volume metering, majority voting, detection message generation. |
+| [`display_st7735s.c`](./display_st7735s.c) / [`display_st7735s.h`](./display_st7735s.h) | SPI TFT display driver rendering live directional alerts, noise classification, and RMS bars. |
+| [`i2s_capture.c`](./i2s_capture.c) / [`i2s_capture.h`](./i2s_capture.h) | 16 kHz 32-bit stereo I2S DMA driver, unpacking Left (Mic 1) and Right (Mic 2) PCM samples. |
+| [`mfcc.c`](./mfcc.c) / [`mfcc.h`](./mfcc.h) | ESP-DSP accelerated MFCC pipeline (0.97 pre-emphasis, Hamming window, 512-pt FFT, 40 Mel filters, DCT-II). |
+| [`inference.cpp`](./inference.cpp) / [`inference.h`](./inference.h) | C++ bridge for TensorFlow Lite for Microcontrollers, memory allocation, and interpreter invocation. |
+| [`model_data.cc`](./model_data.cc) | Flash-mapped INT8 quantized TFLite model byte array. |
+| [`model_config.h`](./model_config.h) | Audio constants, per-coefficient standardization parameters, and quantization affine scales. |
+| [`mel_tables.h`](./mel_tables.h) | Precomputed Librosa-matching Hamming window, Mel filterbank, and DCT matrix tables. |
+| [`test_vectors.h`](./test_vectors.h) | Pre-computed siren and noise test vectors for automated on-device mathematical parity testing. |
+| [`traffic_ctrl.c`](./traffic_ctrl.c) / [`traffic_ctrl.h`](./traffic_ctrl.h) | **PHASE 2**: Emergency vehicle priority traffic light state machine, GPIO management, detection message handling, mode transitions (NORMAL/CLEARANCE/EMERGENCY). |
 
 ---
 
