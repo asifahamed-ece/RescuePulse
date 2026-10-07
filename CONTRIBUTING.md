@@ -27,7 +27,7 @@ Thank you for considering contributing to RescuePulse! We welcome contributions 
 
 ### Development Setup
 1. Clone the repository: `git clone https://github.com/your-username/RescuePulse.git`
-2. Install dependencies: Refer to the documentation in the `docs/` folder
+2. Review the [project README](./README.md) and [PlatformIO configuration](./Rescue_Pulse_PIO/platformio.ini) for build configuration and dependency information.
 3. Set up your development environment as per the hardware requirements
 
 ### Testing
